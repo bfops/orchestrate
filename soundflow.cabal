@@ -1,0 +1,21 @@
+Name:                Soundflow
+Version:             0.1
+Description:         Flexible MIDI music developer
+Category:            Music
+License:             BSD3
+Author:              Ben Foppa
+Maintainer:          benjamin.foppa@gmail.com
+Build-Type:          Simple
+Cabal-Version:       >= 1.9.2
+
+Executable Soundflow
+    hs-source-dirs: src/
+    Main-is:        Main.hs
+    GHC-Options:    -Wall -Werror -threaded -rtsopts=all -fllvm -fno-warn-orphans
+
+    Build-Depends: 
+                    Summit == 0.10,
+                    Game-Wrappers == 0.2,
+                    QuickCheck >= 2,
+                    midi-monad,
+                    base
