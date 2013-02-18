@@ -1,6 +1,6 @@
 # Setting Up
 
-To build and run the game, you will need:
+You will need:
 
  * Haskell
  * cabal
@@ -23,22 +23,11 @@ When the environment has been successfully set up, the project can be built with
 
 # Running
 
-After a successful build, the game can be run from
+After a successful build, the application can be run from
 
-    dist/build/Growth/Growth
+    dist/build/Soundflow/Soundflow
 
 Keys are configurable in `src/Config.hs`
-
-## Mixing
-
-Objects mix with one another as shown in `Game/Object.hs`.
-The order in which a tile mixes with its neighbours is up, left, right, down.
-
-## Updating
-
-Updating is done incrementally whenever the update key (configurable) is held.
-I don't want to explain all the intricacies of _how_ the objects update.
-For that, look at the Object Behaviours at the bottom of Game.Object.
 
 # Documentation
 
