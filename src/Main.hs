@@ -34,22 +34,21 @@ main :: SystemIO ()
 main = runIO $ runGLFW displayOpts (0, 0 :: Integer) title $ do
         initOpenGL
         initEvents
-        runMIDI title $ void $ loop mainLoop
-                             $ midiEvents
-                           >>> several (convertEvents >>> lift (arr $ maybe (return ()) sendNote))
-                           >>> lift (arr $ \_-> ioMIDI $ \_-> updateGraphics)
+        runMIDI title "128:0" "14:0" $ void $ loop mainLoop
+                                     $ (midiEvents <&> (<>) <*> lift (arr $ \_-> midiIn))
+                                   >>> several (lift $ arr sendNote)
+                                   >>> lift (arr $ \_-> ioMIDI $ \_-> updateGraphics)
     where
         sendNote (b, note) = iff b startNote stopNote 0 note >> flush
 
 mainLoop :: Stream MIDI () () -> MIDI (Stream MIDI () ())
 mainLoop s = (snd <$> s $< ()) <* ioMIDI (\_-> io $ sleep 0.01)
 
-midiEvents :: Stream MIDI () [Event]
-midiEvents = mswitch (ioMIDI . \i _-> i) events
-
-convertEvents :: Stream MIDI Event (Maybe (Bool, Note))
-convertEvents = lift $ arr $ \e -> case e of
-                    CloseEvent -> empty
-                    ResizeEvent s -> ioMIDI $ \_-> resize s $> Nothing
-                    ButtonEvent (KeyButton key) s -> return $ (s == Press,) <$> lookup key keymap
-                    _ -> return Nothing
+midiEvents :: Stream MIDI () [(Bool, Note)]
+midiEvents = mswitch (ioMIDI . \i _-> i)
+           $ events >>> lift (arr $ traverse convertEvent) >>> identify (arr $ mapMaybe id)
+    where
+        convertEvent CloseEvent = empty
+        convertEvent (ResizeEvent s) = resize s $> Nothing
+        convertEvent (ButtonEvent (KeyButton key) s) = return $ (s == Press,) <$> lookup key keymap
+        convertEvent _ = return Nothing
