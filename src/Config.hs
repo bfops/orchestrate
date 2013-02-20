@@ -2,8 +2,7 @@
            , TupleSections
            #-}
 -- | Settings are stored in this module
-module Config ( viewDist
-              , windowSize
+module Config ( windowSize
               , displayOpts
               , title
               , keymap
@@ -21,19 +20,15 @@ import Wrappers.GLFW (DisplayOptions (..), defaultDisplayOptions)
 
 import Input
 
--- | Viewing distance of the camera
-viewDist :: Int
-viewDist = 3
-
 windowSize :: Num a => (a, a)
-windowSize = (800, 800)
+windowSize = (64, 64)
 
 -- | GLFW display options
 displayOpts :: DisplayOptions
 displayOpts = defaultDisplayOptions
     { displayOptions_width = fst windowSize
     , displayOptions_height = snd windowSize
-    , displayOptions_windowIsResizable = False
+    , displayOptions_windowIsResizable = True
     }
 
 -- | Title of the game window
