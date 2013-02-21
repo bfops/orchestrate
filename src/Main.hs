@@ -9,12 +9,8 @@ import Prelewd
 import IO
 
 import Control.Stream
-import Data.Int
 import Data.Tuple
-import Storage.Id
 import Storage.Map
-import Storage.Set (Set, set)
-import Subset.Num
 
 import Wrappers.GLFW
 import Wrappers.Events
@@ -26,6 +22,7 @@ import Main.Graphics
 import Config
 
 import Input
+import Logic
 
 mswitch :: Functor m2 => (m1 (a, Stream m1 r a) -> m2 (b, Stream m1 r a)) -> Stream m1 r a -> Stream m2 r b
 mswitch f s = Stream $ \r -> mswitch f <$$> f (s $< r)
@@ -40,22 +37,10 @@ main = runIO $ runGLFW displayOpts (0, 0 :: Integer) title $ do
         initEvents
         runMIDI title "128:0" "14:0" $ iterateM_ (map snd . ($< ()))
                                      $ (inputs <&> (<>) <*> midiInputs)
-                                   >>> several (lift $ sendNote <$> harmonies <*> arr (map fromNote))
+                                   >>> several (lift $ noteLogic >>> arr sendNotes)
                                    >>> mstream (ioMIDI $ \_-> updateGraphics >> io (sleep 0.01))
     where
-        sendNote h (b, Just note) = traverse_ (iff b startNote stopNote 0 . adjustPitch note) h >> flush
-        sendNote _ _ = return ()
-
-        adjustPitch note dp = pitch' (fromIntegral . (dp +) . fromIntegral) note
-
-harmonies :: Stream Id (Bool, Input) (Set Int16)
-harmonies = updater (barr $ newInputMap . map fromHarmony) initHarmonies >>> arr (set . keys)
-    where
-        initHarmonies = singleton 0 (1 :: Positive Integer)
-
-        newInputMap (_, Nothing) m = m
-        newInputMap (True, Just shift) m = insertWith (+) shift 1 m
-        newInputMap (False, Just shift) m = modify (\v -> toPos $ fromPos v - 1) shift m <?> m
+        sendNotes notes = traverse_ (\(b, (t, n)) -> iff b startNote stopNote t n) notes >> flush
 
 midiInputs :: Stream MIDI () [(Bool, Input)]
 midiInputs = lift $ arr $ \_-> map NoteKey <$$> midiIn
