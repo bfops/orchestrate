@@ -30,13 +30,12 @@ instance (Propogate r a b, Propogate r x y) => Propogate r (a, x) (b, y) where
     propogate r = propogate r *** propogate r
 
 noteLogic :: Stream Id (Bool, Input) [(Bool, (Tick, Note))]
-noteLogic = map (arr $ fromNote &&& fromHarmony)
-        >>> barr propogate
-        >>> map harmonies
-        >>> arr (((0,) <$$>) . toNotes)
+noteLogic = arr (map fromNote) &&& harmonies
+        >>> arr toNotes
+        >>> arr ((0,) <$$>)
 
-harmonies :: Stream Id (Bool, Maybe Int16) (Set Int16)
-harmonies = updater (barr newInputMap) initHarmonies >>> arr (set . keys)
+harmonies :: Stream Id (Bool, Input) (Set Int16)
+harmonies = arr (map fromHarmony) >>> updater (barr newInputMap) initHarmonies >>> arr (set . keys)
     where
         initHarmonies = singleton 0 (1 :: Positive Integer)
 
