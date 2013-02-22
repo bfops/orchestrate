@@ -35,15 +35,17 @@ main :: SystemIO ()
 main = runIO $ runGLFW displayOpts (0, 0 :: Integer) title $ do
         initOpenGL
         initEvents
-        runMIDI title "128:0" "14:0" $ iterateM_ (map snd . ($< ()))
-                                     $ (inputs <&> (<>) <*> midiInputs)
-                                   >>> several (lift $ noteLogic >>> arr sendNotes)
-                                   >>> mstream (ioMIDI $ \_-> updateGraphics >> io (sleep 0.01))
+        runMIDI title "128:0" "14:0" $ tempo (div 60000000 bpm)
+                                    >> iterateM_ (map snd . ($< ())) mainLoop
     where
         sendNotes notes = traverse_ (\(b, (t, n)) -> iff b startNote stopNote t n) notes >> flush
 
-midiInputs :: Stream MIDI () [(Bool, Input)]
-midiInputs = lift $ arr $ \_-> map NoteKey <$$> midiIn
+        diffT = loop (barr $ \((b, inpt), t) t0 -> (((b, inpt), (t -) <$> t0 <?> 0), Just t)) Nothing
+
+        mainLoop = (inputs <&> (<>) <*> midiInputs) &&& ticks
+               >>> arr (\(l, t) -> l <&> (, t))
+               >>> several (identify diffT >>> lift (song >>> arr sendNotes))
+               >>> mstream (ioMIDI $ \_-> updateGraphics >> io (sleep 0.01))
 
 inputs :: Stream MIDI () [(Bool, Input)]
 inputs = mswitch (ioMIDI . \i _-> i)
@@ -53,3 +55,12 @@ inputs = mswitch (ioMIDI . \i _-> i)
         convertEvent (ResizeEvent s) = resize s $> Nothing
         convertEvent (ButtonEvent (KeyButton key) s) = return $ (s == Press,) <$> lookup key keymap
         convertEvent _ = return Nothing
+
+midiInputs :: Stream MIDI () [(Bool, Input)]
+midiInputs = lift $ arr $ \_-> map NoteKey <$$> midiIn
+
+-- TODO: Investigate overflow scenarios
+ticks :: Stream MIDI () Tick
+ticks = mstream $ ioMIDI $ \_-> io (convert <$> getTime)
+    where
+        convert t = floor (t * fromIntegral bpm * 96 / 60 / fromIntegral granularity) * granularity

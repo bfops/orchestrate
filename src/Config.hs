@@ -5,6 +5,8 @@
 module Config ( windowSize
               , displayOpts
               , title
+              , bpm
+              , granularity
               , keymap
               ) where
 
@@ -35,10 +37,18 @@ displayOpts = defaultDisplayOptions
 title :: Text
 title = "Soundflow"
 
+-- | Beats per minute
+bpm :: Integer
+bpm = 60
+
+granularity :: Tick
+granularity = 6
+
 -- | What controls what?
 keymap :: Map Key Input
 keymap = fromList $ map (CharKey *** NoteKey . makeNote) noteKeys
                  <> map (CharKey *** Harmony) harmonyKeys
+                 <> [(CharKey 'Q', Record), (CharKey 'W', Play)]
     where
         makeNote p = Note p 0 64
 
