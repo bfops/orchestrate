@@ -8,11 +8,13 @@ module Config ( windowSize
               , bpm
               , granularity
               , keymap
+              , midiMap
               ) where
 
 import Prelewd
 
 import Data.Tuple
+import Data.Word
 import Storage.Map
 
 import Sound.MIDI.Monad.Types
@@ -64,3 +66,9 @@ keymap = fromList $ map (CharKey *** Melody . map makeNote) noteKeys
             ]
 
         harmonyKeys = [("0123456789" ! i, [fromInteger i]) | i <- [1..9]]
+
+-- | Map (Pitch, Channel) to (Velocity -> Input)
+midiMap :: Map (Word8, Word8) (Word8 -> Input)
+midiMap = fromList
+        -- The two octaves below middle C are violin, and pitched up by 2 octaves
+        $ [((36 + i, 0), Melody . (: []) . Note (60 + i) 40) | i <- [0..23]]

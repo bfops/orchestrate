@@ -57,7 +57,9 @@ inputs = mswitch (ioMIDI . \i _-> i)
         convertEvent _ = return Nothing
 
 midiInputs :: Stream MIDI () [(Bool, Input)]
-midiInputs = lift $ arr $ \_-> map (Melody . (:[])) <$$> midiIn
+midiInputs = lift $ arr $ \_-> map toInput <$$> midiIn
+    where
+        toInput (Note p c v) = lookup (p, c) midiMap <&> ($ v) <?> Melody [Note p c v]
 
 -- TODO: Investigate overflow scenarios
 ticks :: Stream MIDI () Tick
