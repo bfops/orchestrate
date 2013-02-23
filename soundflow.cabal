@@ -14,8 +14,8 @@ Executable Soundflow
     GHC-Options:    -Wall -Werror -threaded -rtsopts=all -fllvm -fno-warn-orphans
 
     Build-Depends: 
-                    Summit == 0.10,
+                    Summit == 0.11,
                     Game-Wrappers == 0.2,
                     QuickCheck >= 2,
-                    midi-monad,
+                    midi-monad >= 0.2,
                     base
