@@ -7,8 +7,8 @@ module Config ( windowSize
               , title
               , bpm
               , granularity
-              , keymap
-              , midiMap
+              , mapButtons
+              , mapMIDI
               ) where
 
 import Prelewd
@@ -46,14 +46,12 @@ granularity :: Tick
 granularity = 6
 
 -- | What controls what?
-keymap :: Map Key Input
-keymap = fromList $ map (CharKey *** Melody . map makeNote) noteKeys
-                 <> map (CharKey *** Harmony) harmonyKeys
-                 <> [(CharKey 'Q', Record), (CharKey 'W', Play)]
+mapButtons :: ButtonMap
+mapButtons = fromList $ noteButtons <> harmonyButtons <> recordButtons
     where
         makeNote p = Note p 0 64
 
-        noteKeys =
+        noteButtons = map (KeyButton . CharKey *** Melody . map makeNote)
             [ ('A', [48])
             , ('S', [50])
             , ('D', [52])
@@ -64,9 +62,11 @@ keymap = fromList $ map (CharKey *** Melody . map makeNote) noteKeys
             , ('K', [60])
             ]
 
-        harmonyKeys = [("0123456789" ! i, [fromInteger i]) | i <- [1..9]]
+        harmonyButtons = map (KeyButton . CharKey *** Harmony)
+            [("0123456789" ! i, [fromInteger i]) | i <- [1..9]]
 
-midiMap :: Map (Pitch, Instrument) (Velocity -> Input)
-midiMap = fromList
-        -- The two octaves below middle C are violin, and pitched up by 2 octaves
-        $ [((36 + i, 0), Melody . (: []) . Note (60 + i) 40) | i <- [0..23]]
+        recordButtons = map (map2 $ KeyButton . CharKey)
+            [('Q', Record), ('W', Play)]
+
+mapMIDI :: MIDIMap
+mapMIDI = fromList mempty

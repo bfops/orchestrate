@@ -41,14 +41,16 @@ song = updater (memory &&& noteLogic >>> loop (barr toSong) mempty) []
         noteLogic = arr (fst.fst) >>> arr (map fromMelody) &&& harmonies
 
 record :: Stream Id (((Bool, Input), Tick), Song) Song
-record = updater (barr state) (Nothing, []) >>> arr snd
+record = updater (map2 (map2 $ map2 $ barr recordPressed) >>> barr state) (Nothing, []) >>> arr snd
     where
-        state (((b, inpt), dt), notes) (Just t, sng) = let t' = iff (b && inpt == Record) Nothing $ Just $ dt + t
-                                                       in (t', (map (map2 (t +)) <$> notes) <> sng)
-        state (((b, inpt), _), _) (Nothing, sng) = iff (b && inpt == Record) (Just 0, []) (Nothing, sng)
+        recordPressed pressed inpt = pressed && isRecord inpt
+
+        state ((pressed, dt), notes) (Just t, sng) = let t' = mcond (not pressed) $ dt + t
+                                                     in (t', (map (map2 (t +)) <$> notes) <> sng)
+        state ((pressed, _), _) (Nothing, sng) = iff pressed (Just 0, []) (Nothing, sng)
 
 playback :: Stream Id ((Bool, Input), Song) Song
-playback = barr $ \(b, i) s -> guard (b && i == Play) >> s
+playback = barr $ \(b, i) s -> guard (b && isPlay i) >> s
 
 try' :: (a -> Maybe a) -> a -> a
 try' f x = f x <?> x
@@ -62,15 +64,17 @@ harmonies = arr (map fromHarmony) >>> updater (barr newInputMap) initHarmonies >
         newInputMap (True, Just shifts) m = foldr (\s -> insertWith (+) s 1) m shifts
         newInputMap (False, Just shifts) m = foldr (\s -> try' $ modify (\v -> toPos $ fromPos v - 1) s) m shifts
 
-toSong :: (Song, ((Bool, Maybe [Note]), [Int16])) -> Map Note [Int16] -> (Song, Map Note [Int16])
+toSong :: (Song, ((Bool, Maybe [Note]), [Int16]))
+       -> Map (Pitch, Instrument) [Int16]
+       -> (Song, Map (Pitch, Instrument) [Int16])
 toSong (sng, ((_, Nothing), _)) hmap = (sng, hmap)
 toSong (sng, ((True, Just notes), hs)) hmap = ( ((True,) . (0,) <$> (adjustPitch <$> notes <*> hs)) <> sng
-                                              , foldr (\n -> insert n hs) hmap notes
+                                              , foldr (\n -> insert (pitch n, instr n) hs) hmap notes
                                               )
-toSong (sng, ((False, Just notes), _)) hmap = foldr foo (sng, hmap) notes
+toSong (sng, ((False, Just notes), _)) hmap = foldr newHarmonies (sng, hmap) notes
     where
-        foo note (s, m) = let (v, m') = remove note m <?> error "double-removal"
-                          in (((False,) . (0,) . adjustPitch note <$> v) <> s, m')
+        newHarmonies note (s, m) = let (v, m') = remove (pitch note, instr note) m <?> error "double-removal"
+                                   in (((False,) . (0,) . adjustPitch note <$> v) <> s, m')
 
 adjustPitch :: Note -> Int16 -> Note
 adjustPitch note dp = pitch' (\p -> fromIntegral $ fromIntegral p + dp) note
