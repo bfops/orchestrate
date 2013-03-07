@@ -5,6 +5,8 @@
 module Config ( windowSize
               , displayOpts
               , title
+              , inMIDI
+              , outMIDI
               , bpm
               , granularity
               , mapButtons
@@ -37,6 +39,10 @@ displayOpts = defaultDisplayOptions
 -- | Title of the game window
 title :: Text
 title = "Soundflow"
+
+outMIDI, inMIDI :: Text
+outMIDI = "128:0"
+inMIDI = "14:0"
 
 -- | Beats per minute
 bpm :: Integer

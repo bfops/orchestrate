@@ -35,7 +35,7 @@ main :: SystemIO ()
 main = runIO $ runGLFW displayOpts (0, 0 :: Integer) title $ do
         initOpenGL
         initEvents
-        runMIDI title "128:0" "14:0" $ tempo (div 60000000 bpm)
+        runMIDI title outMIDI inMIDI $ tempo (div 60000000 bpm)
                                     >> iterateM_ (map snd . ($< ())) mainLoop
     where
         sendNotes notes = traverse_ (\(b, (t, n)) -> iff b startNote stopNote t n) notes >> flush
