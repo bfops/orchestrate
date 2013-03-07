@@ -53,7 +53,7 @@ granularity = 6
 
 -- | What controls what?
 mapButtons :: ButtonMap
-mapButtons = fromList $ noteButtons <> harmonyButtons <> recordButtons
+mapButtons = fromList $ noteButtons <> harmonyButtons <> recordButtons <> remapButtons
     where
         makeNote p = Note p 0 64
 
@@ -73,6 +73,13 @@ mapButtons = fromList $ noteButtons <> harmonyButtons <> recordButtons
 
         recordButtons = map (map2 $ KeyButton . CharKey)
             [('Q', Record), ('W', Play)]
+
+        remapButtons = map (KeyButton . CharKey *** Remap . map fromList)
+            [ ('R', (mempty, violinMaps))
+            ]
+
+        violinMaps = map (Melody <$$>)
+            [((36 + i, 0), (: []) . Note (48 + i) 40) | i <- [0..23]]
 
 mapMIDI :: MIDIMap
 mapMIDI = fromList mempty

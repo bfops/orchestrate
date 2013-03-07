@@ -40,27 +40,39 @@ main = runIO $ runGLFW displayOpts (0, 0 :: Integer) title $ do
     where
         sendNotes notes = traverse_ (\(b, (t, n)) -> iff b startNote stopNote t n) notes >> flush
 
-        mainLoop = inputs <&> (<>) <*> midiInputs
+        mainLoop = inputs
                >>> several (id &&& deltaT >>> lift (song >>> arr sendNotes))
                >>> mstream (ioMIDI $ \_-> updateGraphics >> io (sleep 0.01))
+
+        inputs = (map Left <$$> buttons) <&> (<>) <*> (map Right <$$> mstream midiIn)
+             >>> identify ( several (loop (barr convertInputs) (mapButtons, mapMIDI))
+                        >>> arr (mapMaybe id)
+                          )
 
         deltaT = identify (arr $ \_-> ()) >>> ticks >>> identify diff
 
         diff = loop (barr $ \t t0 -> ((t -) <$> t0 <?> 0, Just t)) Nothing
 
-inputs :: Stream MIDI () [(Bool, Input)]
-inputs = mswitch (ioMIDI . \i _-> i)
-       $ events >>> lift (arr $ traverse convertEvent) >>> identify (arr $ mapMaybe id)
+convertInputs :: (Bool, Either Button Note) -> InputMap -> (Maybe (Bool, Input), InputMap)
+convertInputs (b, e) m = let i = convertInput m e
+                         in ((b,) <$> i, try newMap (guard b >> i >>= fromRemap) m)
     where
-        convertEvent CloseEvent = empty
-        convertEvent (ResizeEvent s) = resize s $> Nothing
-        convertEvent (ButtonEvent b s) = return $ (s == Press,) <$> lookup b mapButtons
-        convertEvent _ = return Nothing
+        newMap (btns', notes') (btns, notes) = (btns' <> btns, notes' <> notes)
 
-midiInputs :: Stream MIDI () [(Bool, Input)]
-midiInputs = lift $ arr $ \_-> map toInput <$$> midiIn
+convertInput :: InputMap -> Either Button Note -> Maybe Input
+convertInput (btns, _) (Left btn) = lookup btn btns
+convertInput (_, notes) (Right (Note p c v)) = lookup (p, c) notes <&> ($ v) <|> Just (Melody [Note p c v])
+
+buttons :: Stream MIDI () [(Bool, Button)]
+buttons = mswitch (ioMIDI . \i _-> i)
+        $ events
+      >>> lift (arr $ traverse toButton)
+      >>> identify (arr concat)
     where
-        toInput (Note p c v) = lookup (p, c) mapMIDI <&> ($ v) <?> Melody [Note p c v]
+        toButton CloseEvent = empty
+        toButton (ResizeEvent s) = resize s $> []
+        toButton (ButtonEvent b s) = return [(s == Press, b)]
+        toButton _ = return []
 
 -- TODO: Investigate overflow scenarios
 ticks :: Stream MIDI () Tick
