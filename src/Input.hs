@@ -1,6 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude
            #-}
 module Input ( Input (..)
+             , Harmony
              , ButtonMap
              , MIDIMap
              , InputMap
@@ -19,12 +20,13 @@ import Storage.Map
 
 import Wrappers.Events
 
+type Harmony = Int16
 type ButtonMap = Map Button Input
 type MIDIMap = Map (Pitch, Instrument) (Velocity -> Input)
 type InputMap = (ButtonMap, MIDIMap)
 
 data Input = Melody [Note]
-           | Harmony [Int16]
+           | Harmony [Harmony]
            | Record
            | Play
            | Remap InputMap
@@ -33,7 +35,7 @@ fromMelody :: Input -> Maybe [Note]
 fromMelody (Melody s) = Just s
 fromMelody _ = Nothing
 
-fromHarmony :: Input -> Maybe [Int16]
+fromHarmony :: Input -> Maybe [Harmony]
 fromHarmony (Harmony hs) = Just hs
 fromHarmony _ = Nothing
 

@@ -14,7 +14,6 @@ import Prelewd
 import Impure
 
 import Control.Stream
-import Data.Int
 import Data.Tuple
 import Sound.MIDI.Monad
 import Storage.Id
@@ -55,7 +54,7 @@ playback = barr $ \(b, i) s -> guard (b && isPlay i) >> s
 try' :: (a -> Maybe a) -> a -> a
 try' f x = f x <?> x
 
-harmonies :: Stream Id (Bool, Input) [Int16]
+harmonies :: Stream Id (Bool, Input) [Harmony]
 harmonies = arr (map fromHarmony) >>> updater (barr newInputMap) initHarmonies >>> arr keys
     where
         initHarmonies = singleton 0 (1 :: Positive Integer)
@@ -64,17 +63,17 @@ harmonies = arr (map fromHarmony) >>> updater (barr newInputMap) initHarmonies >
         newInputMap (True, Just shifts) m = foldr (\s -> insertWith (+) s 1) m shifts
         newInputMap (False, Just shifts) m = foldr (\s -> try' $ modify (\v -> toPos $ fromPos v - 1) s) m shifts
 
-toSong :: (Song, ((Bool, Maybe [Note]), [Int16]))
-       -> Map (Pitch, Instrument) [Int16]
-       -> (Song, Map (Pitch, Instrument) [Int16])
+toSong :: (Song, ((Bool, Maybe [Note]), [Harmony]))
+       -> Map (Pitch, Instrument) [Harmony]
+       -> (Song, Map (Pitch, Instrument) [Harmony])
 toSong (sng, ((_, Nothing), _)) hmap = (sng, hmap)
-toSong (sng, ((True, Just notes), hs)) hmap = ( ((True,) . (0,) <$> (adjustPitch <$> notes <*> hs)) <> sng
+toSong (sng, ((True, Just notes), hs)) hmap = ( ((True,) . (0,) <$> (harmonize <$> notes <*> hs)) <> sng
                                               , foldr (\n -> insert (pitch n, instr n) hs) hmap notes
                                               )
 toSong (sng, ((False, Just notes), _)) hmap = foldr newHarmonies (sng, hmap) notes
     where
         newHarmonies note (s, m) = let (v, m') = remove (pitch note, instr note) m <?> error "double-removal"
-                                   in (((False,) . (0,) . adjustPitch note <$> v) <> s, m')
+                                   in (((False,) . (0,) . harmonize note <$> v) <> s, m')
 
-adjustPitch :: Note -> Int16 -> Note
-adjustPitch note dp = pitch' (\p -> fromIntegral $ fromIntegral p + dp) note
+harmonize :: Note -> Harmony -> Note
+harmonize note dp = pitch' (\p -> fromIntegral $ fromIntegral p + dp) note
