@@ -20,7 +20,7 @@ import Storage.Map
 
 import Wrappers.Events
 
-type Harmony = Int16
+type Harmony = (Maybe Instrument, Int16)
 type ButtonMap = Map Button Input
 type MIDIMap = Map (Pitch, Instrument) (Velocity -> Input)
 type InputMap = (ButtonMap, MIDIMap)

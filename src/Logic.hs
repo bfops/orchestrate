@@ -57,7 +57,7 @@ try' f x = f x <?> x
 harmonies :: Stream Id (Bool, Input) [Harmony]
 harmonies = arr (map fromHarmony) >>> updater (barr newInputMap) initHarmonies >>> arr keys
     where
-        initHarmonies = singleton 0 (1 :: Positive Integer)
+        initHarmonies = singleton (Nothing, 0) (1 :: Positive Integer)
 
         newInputMap (_, Nothing) m = m
         newInputMap (True, Just shifts) m = foldr (\s -> insertWith (+) s 1) m shifts
@@ -76,4 +76,6 @@ toSong (sng, ((False, Just notes), _)) hmap = foldr newHarmonies (sng, hmap) not
                                    in (((False,) . (0,) . harmonize note <$> v) <> s, m')
 
 harmonize :: Note -> Harmony -> Note
-harmonize note dp = pitch' (\p -> fromIntegral $ fromIntegral p + dp) note
+harmonize note (inst, dp) = instr' (try (\x _-> x) inst)
+                          $ pitch' (\p -> fromIntegral $ fromIntegral p + dp)
+                          $ note

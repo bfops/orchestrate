@@ -49,7 +49,7 @@ bpm :: Integer
 bpm = 60
 
 granularity :: Tick
-granularity = 6
+granularity = 2
 
 -- | What controls what?
 mapButtons :: ButtonMap
@@ -69,13 +69,14 @@ mapButtons = fromList $ noteButtons <> harmonyButtons <> recordButtons <> remapB
             ]
 
         harmonyButtons = map (KeyButton . CharKey *** Harmony)
-            [("0123456789" ! i, [fromInteger i]) | i <- [1..9]]
+                       $ [("_123456789" ! i, [(Nothing, fromInteger i)]) | i <- [1..9]]
+                      <> [("_QWERTYUIO" ! i, [(Just 40, fromInteger i)]) | i <- [1..9]]
 
         recordButtons = map (map2 $ KeyButton . CharKey)
-            [('Q', Record), ('W', Play)]
+            [('Z', Record), ('X', Play)]
 
         remapButtons = map (KeyButton . CharKey *** Remap . map fromList)
-            [ ('R', (mempty, violinMaps))
+            [ ('V', (mempty, violinMaps))
             ]
 
         violinMaps = map (Melody <$$>)
