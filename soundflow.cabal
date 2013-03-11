@@ -17,5 +17,5 @@ Executable Soundflow
                     Summit == 0.11,
                     Game-Wrappers == 0.2,
                     QuickCheck >= 2,
-                    midi-monad >= 0.2,
+                    midi-monad == 0.2,
                     base
