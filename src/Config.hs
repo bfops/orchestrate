@@ -64,13 +64,13 @@ mapButtons = fromList (harmonyButtons <> recordButtons) <> pianoButtons
 pianoButtons :: ButtonMap
 pianoButtons = fromList $ noteButtons <> harmonyButtons <> remapButtons
     where
-        makeNote p = Note p 0 64
+        makeNote p = Note p (Instrument 0) 64
 
         noteButtons = map (KeyButton . CharKey *** Melody . map makeNote)
             [("ASDFGHJK" ! i, [[48, 50, 52, 53, 55, 57, 59, 60] ! i]) | i <- [0..7]]
 
         harmonyButtons = map (KeyButton . CharKey *** Harmony)
-            [("QWERTYUIOP" ! i, [(Just 40, fromInteger i)]) | i <- [0..9]]
+            [("QWERTYUIOP" ! i, [(Just $ Instrument 40, fromInteger i)]) | i <- [0..9]]
 
         remapButtons = map (KeyButton . CharKey *** Remap)
             [ ('V', violinMap)
@@ -79,23 +79,23 @@ pianoButtons = fromList $ noteButtons <> harmonyButtons <> remapButtons
 violinMap :: InputMap
 violinMap = (fromList $ noteButtons <> harmonyButtons <> remapButtons, fromList violinMIDI)
     where
-        makeNote p = Note p 40 64
+        makeNote p = Note p (Instrument 40) 64
 
         noteButtons = map (KeyButton . CharKey *** Melody . map makeNote)
             [("ASDFGHJK" ! i, [[48, 50, 52, 53, 55, 57, 59, 60] ! i]) | i <- [0..7]]
 
         harmonyButtons = map (KeyButton . CharKey *** Harmony)
-            [("QWERTYUIOP" ! i, [(Just 0, fromInteger i)]) | i <- [0..9]]
+            [("QWERTYUIOP" ! i, [(Just $ Instrument 0, fromInteger i)]) | i <- [0..9]]
 
         remapButtons = map (KeyButton . CharKey *** Remap)
             [ ('V', (pianoButtons, fromList pianoMIDI))
             ]
 
         violinMIDI = map (Melody <$$>)
-            [((36 + i, 0), (: []) . Note (48 + i) 40) | i <- [0..23]]
+            [((36 + i, Instrument 0), (: []) . Note (48 + i) (Instrument 40)) | i <- [0..23]]
 
         pianoMIDI = map (Melody <$$>)
-            [((36 + i, 0), (: []) . Note (36 + i) 0) | i <- [0..23]]
+            [((36 + i, Instrument 0), (: []) . Note (36 + i) (Instrument 0)) | i <- [0..23]]
 
 mapMIDI :: MIDIMap
 mapMIDI = fromList mempty

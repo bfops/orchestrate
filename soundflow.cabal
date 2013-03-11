@@ -1,5 +1,5 @@
 Name:                Soundflow
-Version:             0.1
+Version:             0.2
 Description:         Flexible MIDI music developer
 Category:            Music
 License:             BSD3
@@ -17,5 +17,5 @@ Executable Soundflow
                     Summit == 0.11,
                     Game-Wrappers == 0.2,
                     QuickCheck >= 2,
-                    midi-monad == 0.2,
+                    midi-monad == 0.3,
                     base
