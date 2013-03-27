@@ -2,8 +2,6 @@
            #-}
 module Input ( Input (..)
              , Harmony
-             , ButtonMap
-             , MIDIMap
              , InputMap
              , fromMelody
              , fromHarmony
@@ -21,9 +19,7 @@ import Storage.Map
 import Wrappers.Events
 
 type Harmony = (Maybe Instrument, Int16)
-type ButtonMap = Map Button Input
-type MIDIMap = Map (Pitch, Instrument) (Velocity -> Input)
-type InputMap = (ButtonMap, MIDIMap)
+type InputMap = Map (Either Button (Pitch, Instrument)) (Velocity -> Input)
 
 data Input = Melody [Note]
            | Harmony [Harmony]

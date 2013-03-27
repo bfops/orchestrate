@@ -45,7 +45,7 @@ main = runIO $ runGLFW displayOpts (0, 0 :: Integer) title $ do
                >>> mstream (ioMIDI $ \_-> updateGraphics >> io (sleep 0.01))
 
         inputs = (map Left <$$> buttons) <&> (<>) <*> (map Right <$$> mstream midiIn)
-             >>> identify ( several (loop (barr convertInputs) (mapButtons, mapMIDI))
+             >>> identify ( several (loop (barr convertInputs) mapInput)
                         >>> arr (mapMaybe id)
                           )
 
@@ -55,13 +55,12 @@ main = runIO $ runGLFW displayOpts (0, 0 :: Integer) title $ do
 
 convertInputs :: (Bool, Either Button Note) -> InputMap -> (Maybe (Bool, Input), InputMap)
 convertInputs (b, e) m = let i = convertInput m e
-                         in ((b,) <$> i, try newMap (guard b >> i >>= fromRemap) m)
-    where
-        newMap (btns', notes') (btns, notes) = (btns' <> btns, notes' <> notes)
+                         in ((b,) <$> i, try (<>) (guard b >> i >>= fromRemap) m)
 
 convertInput :: InputMap -> Either Button Note -> Maybe Input
-convertInput (btns, _) (Left btn) = lookup btn btns
-convertInput (_, notes) (Right (Note p c v)) = lookup (p, c) notes <&> ($ v) <|> Just (Melody [Note p c v])
+convertInput inputs (Left btn) = lookup (Left btn) inputs <&> ($ defaultVelocity)
+convertInput inputs (Right (Note p c v)) = lookup (Right (p, c)) inputs <&> ($ v)
+                                       <|> Just (Melody [Note p c v])
 
 buttons :: Stream MIDI () [(Bool, Button)]
 buttons = mswitch (ioMIDI . \i _-> i)
