@@ -1,9 +1,11 @@
 {-# LANGUAGE NoImplicitPrelude
            #-}
 module Input ( Input (..)
+             , UnifiedEvent
+             , Song
              , Harmony
              , InputMap
-             , fromMelody
+             , fromChord
              , fromHarmony
              , isRecord
              , isPlay
@@ -18,18 +20,20 @@ import Storage.Map
 
 import Wrappers.Events
 
+type UnifiedEvent = Either Button Note
+type Song = [(Tick, (Maybe Velocity, Note))]
 type Harmony = (Maybe Instrument, Int16)
-type InputMap = Map (Either Button (Pitch, Instrument)) (Velocity -> Input)
+type InputMap = Map UnifiedEvent Input
 
-data Input = Melody [Note]
+data Input = Chord [Note]
            | Harmony [Harmony]
            | Record
            | Play
            | Remap InputMap
 
-fromMelody :: Input -> Maybe [Note]
-fromMelody (Melody s) = Just s
-fromMelody _ = Nothing
+fromChord :: Input -> Maybe [Note]
+fromChord (Chord s) = Just s
+fromChord _ = Nothing
 
 fromHarmony :: Input -> Maybe [Harmony]
 fromHarmony (Harmony hs) = Just hs

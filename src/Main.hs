@@ -10,7 +10,6 @@ import IO
 
 import Control.Stream
 import Data.Tuple
-import Storage.Map
 
 import Wrappers.GLFW
 import Wrappers.Events
@@ -18,14 +17,10 @@ import Wrappers.Events
 import Sound.MIDI.Monad
 
 import Main.Graphics
+import Main.Input
 
 import Config
-
-import Input
 import Logic
-
-mswitch :: Functor m2 => (m1 (a, Stream m1 r a) -> m2 (b, Stream m1 r a)) -> Stream m1 r a -> Stream m2 r b
-mswitch f s = Stream $ \r -> mswitch f <$$> f (s $< r)
 
 mstream :: (Functor m, Monad m) => m a -> Stream m r a
 mstream = lift . arr . \m _-> m
@@ -38,40 +33,15 @@ main = runIO $ runGLFW displayOpts (0, 0 :: Integer) title $ do
         runMIDI title outMIDI inMIDI $ tempo (div 60000000 bpm)
                                     >> iterateM_ (map snd . ($< ())) mainLoop
     where
-        sendNotes notes = traverse_ (\(b, (t, n)) -> iff b startNote stopNote t n) notes >> flush
+        sendNotes notes = traverse_ (\(t, (mv, n)) -> (\v -> startNote t v n) <$> mv <?> stopNote t n) notes >> flush
 
         mainLoop = inputs
                >>> several (id &&& deltaT >>> lift (song >>> arr sendNotes))
                >>> mstream (ioMIDI $ \_-> updateGraphics >> io (sleep 0.01))
 
-        inputs = (map Left <$$> buttons) <&> (<>) <*> (map Right <$$> mstream midiIn)
-             >>> identify ( several (loop (barr convertInputs) mapInput)
-                        >>> arr (mapMaybe id)
-                          )
-
         deltaT = identify (arr $ \_-> ()) >>> ticks >>> identify diff
 
         diff = loop (barr $ \t t0 -> ((t -) <$> t0 <?> 0, Just t)) Nothing
-
-convertInputs :: (Bool, Either Button Note) -> InputMap -> (Maybe (Bool, Input), InputMap)
-convertInputs (b, e) m = let i = convertInput m e
-                         in ((b,) <$> i, try (<>) (guard b >> i >>= fromRemap) m)
-
-convertInput :: InputMap -> Either Button Note -> Maybe Input
-convertInput inputs (Left btn) = lookup (Left btn) inputs <&> ($ defaultVelocity)
-convertInput inputs (Right (Note p c v)) = lookup (Right (p, c)) inputs <&> ($ v)
-                                       <|> Just (Melody [Note p c v])
-
-buttons :: Stream MIDI () [(Bool, Button)]
-buttons = mswitch (ioMIDI . \i _-> i)
-        $ events
-      >>> lift (arr $ traverse toButton)
-      >>> identify (arr concat)
-    where
-        toButton CloseEvent = empty
-        toButton (ResizeEvent s) = resize s $> []
-        toButton (ButtonEvent b s) = return [(s == Press, b)]
-        toButton _ = return []
 
 -- TODO: Investigate overflow scenarios
 ticks :: Stream MIDI () Tick

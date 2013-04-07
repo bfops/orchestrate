@@ -62,45 +62,46 @@ defaultVelocity = 64
 mapInput :: InputMap
 mapInput = mapKeys Left (fromList $ harmonyButtons <> recordButtons) <> pianoMap
     where
-        harmonyButtons = map (KeyButton . CharKey *** (\h _-> h) . Harmony)
+        harmonyButtons = map (KeyButton . CharKey *** Harmony)
             [(numChar i, [(Nothing, fromInteger i)]) | i <- [1..9]]
 
-        recordButtons = map (KeyButton . CharKey *** \i _-> i)
+        recordButtons = map (KeyButton . CharKey *** id)
             [('Z', Record), ('X', Play)]
 
-pianoMap :: InputMap
-pianoMap = mapKeys Left $ fromList $ noteButtons <> harmonyButtons <> remapButtons
-    where
-        makePiano v p = Note p (Instrument 0) v
+piano :: Pitch -> Note
+piano = (, Instrument 0)
 
-        noteButtons = map (KeyButton . CharKey *** \p v -> Melody $ map (makePiano v) p)
+pianoMIDI :: InputMap
+pianoMIDI = fromList $ (Right *** Chord) <$> [(piano n, [piano n]) | n <- [0..120]]
+
+pianoMap :: InputMap
+pianoMap = fromList (noteButtons <> harmonyButtons <> remapButtons) <> pianoMIDI
+    where
+        noteButtons = map (Left . KeyButton . CharKey *** Chord . map piano)
             [("ASDFGHJK" ! i, [[48, 50, 52, 53, 55, 57, 59, 60] ! i]) | i <- [0..7]]
 
-        harmonyButtons = map (KeyButton . CharKey *** (\h _-> h) . Harmony)
+        harmonyButtons = map (Left . KeyButton . CharKey *** Harmony)
             [("QWERTYUIOP" ! i, [(Just $ Instrument 40, fromInteger i)]) | i <- [0..9]]
 
-        remapButtons = map (KeyButton . CharKey *** (\r _-> r) . Remap)
-            [ ('V', violinMap)
+        remapButtons = map (Left . KeyButton . CharKey *** Remap)
+            [ (';', violinMap)
             ]
 
 violinMap :: InputMap
 violinMap = mapKeys Left (fromList $ noteButtons <> harmonyButtons <> remapButtons)
          <> mapKeys Right (fromList violinMIDI)
     where
-        makeViolin v p = Note p (Instrument 40) v
+        violin = (, Instrument 40)
 
-        noteButtons = map (KeyButton . CharKey *** \p v -> Melody $ map (makeViolin v) p)
+        noteButtons = map (KeyButton . CharKey *** Chord . map violin)
             [("ASDFGHJK" ! i, [[48, 50, 52, 53, 55, 57, 59, 60] ! i]) | i <- [0..7]]
 
-        harmonyButtons = map (KeyButton . CharKey *** (\h _-> h) . Harmony)
+        harmonyButtons = map (KeyButton . CharKey *** Harmony)
             [("QWERTYUIOP" ! i, [(Just $ Instrument 0, fromInteger i)]) | i <- [0..9]]
 
-        remapButtons = map (KeyButton . CharKey *** (\r _-> r) . Remap)
-            [ ('V', (pianoMap <> mapKeys Right (fromList pianoMIDI)))
+        remapButtons = map (KeyButton . CharKey *** Remap)
+            [ (';', pianoMap)
             ]
 
-        violinMIDI = map (Melody <$$>)
-            [((36 + i, Instrument 0), (:[]) . Note (48 + i) (Instrument 40)) | i <- [0..23]]
-
-        pianoMIDI = map (Melody <$$>)
-            [((36 + i, Instrument 0), (:[]) . Note (36 + i) (Instrument 0)) | i <- [0..23]]
+        violinMIDI = map (id *** Chord)
+            [((36 + i, Instrument 0), [(48 + i, Instrument 40)]) | i <- [0..23]]
