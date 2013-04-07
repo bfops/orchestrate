@@ -16,14 +16,14 @@ import Prelewd
 
 import Data.Int
 import Sound.MIDI.Monad.Types
-import Storage.Map
+import Storage.Trie
 
 import Wrappers.Events
 
 type UnifiedEvent = Either Button Note
 type Song = [(Tick, (Maybe Velocity, Note))]
 type Harmony = (Maybe Instrument, Int16)
-type InputMap = Map UnifiedEvent Input
+type InputMap = Trie UnifiedEvent Input
 
 data Input = Chord [Note]
            | Harmony [Harmony]

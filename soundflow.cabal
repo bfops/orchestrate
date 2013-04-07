@@ -19,3 +19,21 @@ Executable Soundflow
                     QuickCheck >= 2,
                     midi-monad == 0.4,
                     base
+
+test-suite Tests
+    type:           exitcode-stdio-1.0
+    hs-source-dirs: test/
+                    src/
+    main-is:        Test.hs
+    extensions:     TupleSections, TemplateHaskell, NoImplicitPrelude, BangPatterns
+
+    build-depends:
+                    QuickCheck >= 2,
+                    Summit,
+                    HUnit,
+                    test-framework-quickcheck2,
+                    test-framework-hunit,
+                    test-framework-th,
+                    test-framework,
+                    Cabal,
+                    base

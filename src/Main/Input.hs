@@ -12,6 +12,7 @@ import Impure
 import Control.Stream
 import Storage.Id
 import Storage.Map
+import Storage.Trie
 import Template.MemberTransformer
 
 import Wrappers.Events
@@ -66,11 +67,12 @@ convert = loop (barr convertFunc) $ Context mapInput mapInput mempty
         convertFunc (Nothing, e) cxt = (Just . (Nothing,) *** (\off -> cxt { offMap = off }))
                                    <$> remove e (offMap cxt)
                                    <?> (Nothing, cxt)
-        convertFunc (Just v, e) cxt = case lookup e $ currentMap cxt of
+        convertFunc (Just v, e) cxt = case trie e $ currentMap cxt of
                                         Nothing -> (Nothing, reset cxt)
-                                        Just i -> ( Just (Just v, i)
-                                                  , offMap' (insertWith (error "double-pressed input") e i)
-                                                  $ reset $ try (allMap' . (<>)) (fromRemap i) cxt
-                                                  )
+                                        Just (Value i) -> ( Just (Just v, i)
+                                                          , offMap' (insertWith (error "double-pressed input") e i)
+                                                          $ reset $ try (allMap' . (<>)) (fromRemap i) cxt
+                                                          )
+                                        Just c -> (Nothing, cxt { currentMap = c })
 
         reset = currentMap' =<< \cxt _-> allMap cxt
