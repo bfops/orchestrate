@@ -4,11 +4,12 @@ module Input ( Input (..)
              , UnifiedEvent
              , Song
              , Harmony
+             , Track
              , InputMap
              , fromChord
              , fromHarmony
-             , isRecord
-             , isPlay
+             , fromRecord
+             , fromPlay
              , fromRemap
              ) where
 
@@ -23,12 +24,13 @@ import Wrappers.Events
 type UnifiedEvent = Either Button Note
 type Song = [(Tick, (Maybe Velocity, Note))]
 type Harmony = (Maybe Instrument, Int16)
+type Track = Integer
 type InputMap = Trie UnifiedEvent Input
 
 data Input = Chord [Note]
            | Harmony [Harmony]
-           | Record
-           | Play
+           | Record Track
+           | Play Track
            | Remap InputMap
 
 fromChord :: Input -> Maybe [Note]
@@ -39,13 +41,13 @@ fromHarmony :: Input -> Maybe [Harmony]
 fromHarmony (Harmony hs) = Just hs
 fromHarmony _ = Nothing
 
-isRecord :: Input -> Bool
-isRecord Record = True
-isRecord _ = False
+fromRecord :: Input -> Maybe Track
+fromRecord (Record t) = Just t
+fromRecord _ = Nothing
 
-isPlay :: Input -> Bool
-isPlay Play = True
-isPlay _ = False
+fromPlay :: Input -> Maybe Track
+fromPlay (Play t) = Just t
+fromPlay _ = Nothing
 
 fromRemap :: Input -> Maybe InputMap
 fromRemap (Remap r) = Just r

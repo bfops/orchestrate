@@ -66,8 +66,10 @@ mapInput = fromMap (mapKeys (map Left) $ fromList $ harmonyButtons <> recordButt
         harmonyButtons = map ((:[]) . KeyButton . CharKey *** Harmony)
             [(numChar i, [(Nothing, fromInteger i)]) | i <- [1..9]]
 
-        recordButtons = map ((:[]) . KeyButton . CharKey *** id)
-            [('Z', Record), ('X', Play)]
+        recordButtons = map (map (KeyButton . CharKey) *** id)
+                      $ do i <- [1..9]
+                           let c = numChar i
+                           [(['Z', c], Record i), (['X', c], Play i)]
 
 piano :: Pitch -> Note
 piano = (, Instrument 0)

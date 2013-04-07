@@ -7,23 +7,24 @@ import Prelewd
 
 import Control.Stream
 import Data.Tuple
+import Storage.Map
 import Storage.Id
 import Sound.MIDI.Monad.Types
 
 import Input
 
-type Memory = (Maybe Tick, Song)
+type Memory = Map Track (Maybe Tick, Song)
 
 memory :: Stream Id (((Maybe Velocity, Input), Tick), Song) Song
 memory = arr (fst.fst) &&& record >>> playback
 
 record :: Stream Id (((Maybe Velocity, Input), Tick), Song) Memory
-record = updater (map2 (map2 $ map2 $ barr isPressed) >>> barr state) (Nothing, mempty)
+record = updater (map2 (map2 $ map2 $ barr whichTrack) >>> barr state) mempty
     where
-        isPressed v inpt = v /= Nothing && isRecord inpt
+        whichTrack pressed inpt = pressed >> fromRecord inpt
 
-        state ((pressed, dt), notes) m = if' pressed toggle
-                                         $ updateTime dt $ append notes m
+        state ((track, dt), notes) m = try (alter $ Just . toggle) track
+                                     $ updateTime dt . append notes <$> m
 
         append :: Song -> (Maybe Tick, Song) -> (Maybe Tick, Song)
         append notes (Just t, song) = (Just t, shift t notes <> song)
@@ -35,9 +36,9 @@ record = updater (map2 (map2 $ map2 $ barr isPressed) >>> barr state) (Nothing, 
         updateTime :: Tick -> (Maybe Tick, Song) -> (Maybe Tick, Song)
         updateTime dt (t, song) = (t <&> (+ dt), song)
 
-        toggle :: (Maybe Tick, Song) -> (Maybe Tick, Song)
-        toggle (Just _, song) = (Nothing, song)
+        toggle :: Maybe (Maybe Tick, Song) -> (Maybe Tick, Song)
+        toggle (Just (Just _, song)) = (Nothing, song)
         toggle _ = (Just 0, [])
 
 playback :: Stream Id ((Maybe Velocity, Input), Memory) Song
-playback = barr $ \(b, i) m -> mcond (b /= Nothing && isPlay i) (snd m) <?> []
+playback = barr $ \(b, i) m -> (b >> fromPlay i >>= (`lookup` m)) <&> snd <?> []
