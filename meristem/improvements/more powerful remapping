@@ -1,0 +1,3 @@
+Remapping should lend enough control to render the Config file redundant
+
+The config file's initial mapping then becomes a list of events to run on startup
