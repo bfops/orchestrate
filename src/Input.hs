@@ -23,7 +23,9 @@ import Wrappers.Events
 
 type UnifiedEvent = Either Button Note
 type Song = [(Tick, (Maybe Velocity, Note))]
-type Harmony = (Maybe Instrument, Int16)
+-- | A Harmony consists of an optional velocity shift,
+-- an optional instrument, and a pitch shift.
+type Harmony = (Maybe Int16, (Maybe Instrument, Int16))
 type Track = Integer
 type InputMap = Trie UnifiedEvent Input
 
