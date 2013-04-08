@@ -19,6 +19,8 @@ import Data.Int
 import Sound.MIDI.Monad.Types
 import Storage.Trie
 
+import Text.Show
+
 import Wrappers.Events
 
 type UnifiedEvent = Either Button Note
@@ -34,6 +36,7 @@ data Input = Chord [Note]
            | Record Track
            | Play Track
            | Remap InputMap
+    deriving (Show, Eq, Ord)
 
 fromChord :: Input -> Maybe [Note]
 fromChord (Chord s) = Just s

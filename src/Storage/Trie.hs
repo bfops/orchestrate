@@ -23,6 +23,15 @@ data Trie k v = EmptyTrie
               | Trie (Map k (Trie k v))
     deriving (Show, Eq)
 
+instance (Ord k, Ord v) => Ord (Trie k v) where
+    compare EmptyTrie EmptyTrie = EQ
+    compare EmptyTrie _ = LT
+    compare _ EmptyTrie = GT
+    compare (Value _) (Trie _) = LT
+    compare (Trie _) (Value _) = GT
+    compare (Value x) (Value y) = compare x y
+    compare (Trie x) (Trie y) = compare x y
+
 instance Functor (Trie k) where
     fmap = mapWithKeys . \f _-> f
 
