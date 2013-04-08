@@ -12,6 +12,7 @@ import Impure
 import Control.Stream
 import Storage.Id
 import Storage.Map
+import Storage.Refcount
 import Storage.Trie
 import Template.MemberTransformer
 
@@ -35,6 +36,7 @@ data Context = Context
             { allMap        :: InputMap                 -- ^ The total mapping of events to inputs
             , currentMap    :: InputMap                 -- ^ The current mapping of events to inputs
             , offMap        :: Map UnifiedEvent Input   -- ^ The current mapping of toggle-off events to inputs
+            , currentInputs :: Refcount Input           -- ^ How many times each input is given
             }
 
 $(memberTransformers ''Context)
@@ -62,17 +64,29 @@ convertAll = several (boolToVelocity >>> arr sequence2 >>> convert) >>> arr (map
         boolToVelocity = arr $ map2 $ map2 (`mcond` defaultVelocity)
 
 convert :: Stream Id (Maybe Velocity, UnifiedEvent) (Maybe (Maybe Velocity, Input))
-convert = loop (barr convertFunc) $ Context mapInput mapInput mempty
+convert = loop (barr convertFunc) $ Context mapInput mapInput mempty mempty
     where
-        convertFunc (Nothing, e) cxt = (Just . (Nothing,) *** (\off -> cxt { offMap = off }))
-                                   <$> remove e (offMap cxt)
-                                   <?> (Nothing, cxt)
+        convertFunc (Nothing, e) cxt = (do
+                                        (i, off) <- remove e $ offMap cxt
+                                        let inpts' = refDelete i (currentInputs cxt)
+                                                 <?> error "Released unpressed input"
+                                                 -- Only send the "off" signal when all the keys are released
+                                        return $ ( mcond (lookup i inpts' == Nothing) (Nothing, i)
+                                                 , cxt { offMap = off
+                                                       , currentInputs = inpts'
+                                                       }
+                                                 )
+                                       ) <?> (Nothing, cxt)
         convertFunc (Just v, e) cxt = case trie e $ currentMap cxt of
                                         Nothing -> (Nothing, reset cxt)
-                                        Just (Value i) -> ( Just (Just v, i)
-                                                          , offMap' (insertWith (error "double-pressed input") e i)
-                                                          $ reset $ try (allMap' . (<>)) (fromRemap i) cxt
-                                                          )
+                                        Just (Value i) -> let inpts' = refInsert i $ currentInputs cxt
+                                                          in ( mcond (lookup i inpts' == Just 1) (Just v, i)
+                                                             , offMap' (insertWith (error "double-pressed button") e i)
+                                                             $ reset
+                                                             $ try (allMap' . (<>)) (fromRemap i)
+                                                             $ currentInputs' (\_-> inpts')
+                                                             $ cxt
+                                                             )
                                         Just c -> (Nothing, cxt { currentMap = c })
 
         reset = currentMap' =<< \cxt _-> allMap cxt
