@@ -1,8 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude
            , TupleSections
            #-}
-module Logic ( Song
-             , song
+module Logic ( song
              ) where
 
 import Prelewd
@@ -33,7 +32,7 @@ harmonies = updater (barr newInputMap) mempty >>> arr (toList >>> ((Nothing, (No
     where
         newInputMap (v, i) = try (flip $ foldr $ addOrRemove v . set . (:[])) $ fromHarmony i
         -- decide whether to add or remove elements
-        addOrRemove v = v <&> (\_-> (<>)) <?> (\\)
+        addOrRemove v s = v <&> (\_-> (s <>)) <?> (\\ s)
 
 toSong :: (Song, ((Maybe Velocity, [Note]), [Harmony]))
        -> Map Note [Harmony]
