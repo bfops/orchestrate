@@ -36,7 +36,8 @@ main = runIO $ runGLFW displayOpts (0, 0 :: Integer) title $ do
         sendNotes notes = traverse_ (\(t, (mv, n)) -> (\v -> startNote t v n) <$> mv <?> stopNote t n) notes >> flush
 
         mainLoop = inputs
-               >>> several (id &&& deltaT >>> lift (song >>> arr sendNotes))
+               >>> arr (map Just >>> (Nothing :))
+               >>> several (id &&& deltaT >>> lift (song >>> arr (map (0, )) >>> arr sendNotes))
                >>> mstream (ioMIDI $ \_-> updateGraphics >> io (sleep 0.01))
 
         deltaT = identify (arr $ \_-> ()) >>> ticks >>> identify diff

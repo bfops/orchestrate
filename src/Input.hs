@@ -2,7 +2,6 @@
            #-}
 module Input ( Input (..)
              , UnifiedEvent
-             , Song
              , Harmony
              , Track
              , InputMap
@@ -24,7 +23,6 @@ import Text.Show
 import Wrappers.Events
 
 type UnifiedEvent = Either Button Note
-type Song = [(Tick, (Maybe Velocity, Note))]
 -- | A Harmony consists of an optional velocity shift,
 -- an optional instrument, and a pitch shift.
 type Harmony = (Maybe Int16, (Maybe Instrument, Int16))

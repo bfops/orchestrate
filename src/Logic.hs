@@ -22,29 +22,30 @@ import Logic.Memory
 bound :: (Ord a, Bounded a) => a -> a
 bound = min maxBound . max minBound
 
-song :: Stream Id ((Maybe Velocity, Input), Tick) Song
-song = updater (memory &&& noteLogic >>> loop (barr toSong) mempty) []
+song :: Stream Id (Maybe (Maybe Velocity, Input), Tick) [(Maybe Velocity, Note)]
+song = updater (memory &&& noteLogic >>> loop (barr toSong) mempty) mempty
     where
-        noteLogic = arr (fst.fst) >>> arr (map $ fromChord >>> (<?> [])) &&& harmonies
+        noteLogic = arr (fst >>> fst) >>> arr (map $ map $ fromChord >>> (<?> [])) &&& harmonies
 
-harmonies :: Stream Id (Maybe Velocity, Input) [Harmony]
-harmonies = updater (barr newInputMap) mempty >>> arr (toList >>> ((Nothing, (Nothing, 0)) :))
+harmonies :: Stream Id (Maybe (Maybe Velocity, Input)) [Harmony]
+harmonies = updater (barr $ try newInputMap) mempty >>> arr (toList >>> ((Nothing, (Nothing, 0)) :))
     where
         newInputMap (v, i) = try (flip $ foldr $ addOrRemove v . set . (:[])) $ fromHarmony i
         -- decide whether to add or remove elements
-        addOrRemove v s = v <&> (\_-> (s <>)) <?> (\\ s)
+        addOrRemove v s = v $> (s <>) <?> (\\ s)
 
-toSong :: (Song, ((Maybe Velocity, [Note]), [Harmony]))
+toSong :: ([(Maybe Velocity, Note)], (Maybe (Maybe Velocity, [Note]), [Harmony]))
        -> Map Note [Harmony]
-       -> (Song, Map Note [Harmony])
-toSong (sng, ((Just v, notes), hs)) hmap = let newNotes = harmonize . (Just v,) <$> notes <*> hs
-                                           in ( ((0,) <$> newNotes) <> sng
-                                              , foldr (`insert` hs) hmap notes
-                                              )
-toSong (sng, ((Nothing, notes), _)) hmap = foldr newHarmonies (sng, hmap) notes
+       -> ([(Maybe Velocity, Note)], Map Note [Harmony])
+toSong (sng, (Nothing, _)) h = (sng, h)
+toSong (sng, (Just (Just v, notes), hs)) hmap = let newNotes = harmonize . (Just v,) <$> notes <*> hs
+                                                in ( newNotes <> sng
+                                                   , foldr (`insert` hs) hmap notes
+                                                   )
+toSong (sng, (Just (Nothing, notes), _)) hmap = foldr newHarmonies (sng, hmap) notes
     where
         newHarmonies note (s, m) = let (hs, m') = remove note m <?> error "double-removal"
-                                   in (((0,) . harmonize (Nothing, note) <$> hs) <> s, m')
+                                   in ((harmonize (Nothing, note) <$> hs) <> s, m')
 
 harmonize :: (Maybe Velocity, Note) -> Harmony -> (Maybe Velocity, Note)
 harmonize (v, (p, i)) (dv, (inst, dp)) = ( fromIntegral . bound . try (+) dv . fromIntegral <$> v

@@ -1,4 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude
+           , TupleSections
            #-}
 module Logic.Memory( memory
                    ) where
@@ -7,38 +8,66 @@ import Prelewd
 
 import Control.Stream
 import Data.Tuple
-import Storage.Map
 import Storage.Id
+import Storage.List
+import Storage.Map hiding (filter)
+import Storage.SplitQueue
+
 import Sound.MIDI.Monad.Types
 
 import Input
 
-type Memory = Map Track (Maybe Tick, Song)
-
-memory :: Stream Id (((Maybe Velocity, Input), Tick), Song) Song
-memory = arr (fst.fst) &&& record >>> playback
-
-record :: Stream Id (((Maybe Velocity, Input), Tick), Song) Memory
-record = updater (map2 (map2 $ map2 $ barr whichTrack) >>> barr state) mempty
+unzipMap :: Ord k => Map k (a, b) -> (Map k a, Map k b)
+unzipMap = assocs >>> unzip >>> map unzip >>> (\(k, (a, b)) -> ((k, a), (k, b))) >>> fromLists *** fromLists
     where
-        whichTrack pressed inpt = pressed >> fromRecord inpt
+        fromLists = fromList . uncurry zip
 
-        state ((track, dt), notes) m = try (alter $ Just . toggle) track
-                                     $ updateTime dt . append notes <$> m
+type Song = SplitQueue (Tick, (Maybe Velocity, Note))
 
-        append :: Song -> (Maybe Tick, Song) -> (Maybe Tick, Song)
-        append notes (Just t, song) = (Just t, shift t notes <> song)
-        append _ (Nothing, song) = (Nothing, song)
+type Notes = [(Maybe Velocity, Note)]
+type TrackUpdate = ((Maybe Bool, Tick), Notes)
+type Memory = Map Track (Stream Id TrackUpdate Notes)
 
-        shift :: Tick -> Song -> Song
-        shift t notes = map2 (t +) <$> notes
+timer :: Num t => (a -> Bool) -> (a -> t) -> Stream Id (a, Maybe t) b -> Stream Id a b
+timer p dt s = loop (arr fst &&& barr updateTime >>> s &&& barr state) Nothing
+    where
+        updateTime = dt >>> (+) >>> map
+        state a = if' (p a) toggle
 
-        updateTime :: Tick -> (Maybe Tick, Song) -> (Maybe Tick, Song)
-        updateTime dt (t, song) = (t <&> (+ dt), song)
+toggle :: Num a => Maybe a -> Maybe a
+toggle m = m $> Nothing <?> Just 0
 
-        toggle :: Maybe (Maybe Tick, Song) -> (Maybe Tick, Song)
-        toggle (Just (Just _, song)) = (Nothing, song)
-        toggle _ = (Just 0, [])
+-- | If the track does not exist, create it
+createTrack :: Track -> Memory -> Memory
+createTrack = alter (<|> Just track)
 
-playback :: Stream Id ((Maybe Velocity, Input), Memory) Song
-playback = barr $ \(b, i) m -> (b >> fromPlay i >>= (`lookup` m)) <&> snd <?> []
+memory :: Stream Id ((Maybe (Maybe Velocity, Input), Tick), Notes) Notes
+memory = arr whichTrack
+     >>> loop (barr memoryFunc >>> arr unzipMap) mempty
+     >>> arr concat
+    where
+        whichTrack = map2 $ map2 $ \m -> do
+                            (v, i) <- m
+                            _ <- v
+                            ((True,) <$> fromPlay i) <|> ((False,) <$> fromRecord i)
+
+        memoryFunc :: ((Maybe (Bool, Track), Tick), Notes) -> Memory -> Map Track (Notes, Stream Id TrackUpdate Notes)
+        memoryFunc ((i, dt), notes) = try createTrack (snd <$> i)
+                                  >>> mapWithKey (\k s -> runId $ s $< ((perTrackInput k i, dt), notes))
+
+        perTrackInput k = filter (snd >>> (== k)) >>> map fst
+
+track :: Stream Id TrackUpdate Notes
+track = loop (arr (fst . fst) &&& record >>> play) emptySplit
+
+record :: Stream Id (TrackUpdate, Song) Song
+record = timer (fst >>> fst >>> fst >>> (== Just False)) (fst >>> fst >>> snd) $ barr recordFunc
+    where
+        recordFunc ((_, notes), song) t = try (append notes) t song
+        append notes t q = foldr enqSplit q $ (t,) <$> notes
+
+play :: Stream Id ((Maybe Bool, Tick), Song) (Notes, Song)
+play = timer (fst >>> fst >>> (== Just True)) (fst >>> snd) $ barr playFunc
+    where
+        playFunc (_, song) t = shiftTrack song <$> t <?> ([], reset song)
+        shiftTrack song t = map2 (snd <$>) $ shiftWhile (fst >>> (<= t)) song
