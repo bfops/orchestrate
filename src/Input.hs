@@ -22,11 +22,12 @@ import Text.Show
 
 import Wrappers.Events
 
+import Types
+
 type UnifiedEvent = Either Button Note
 -- | A Harmony consists of an optional velocity shift,
 -- an optional instrument, and a pitch shift.
 type Harmony = (Maybe Int16, (Maybe Instrument, Int16))
-type Track = Integer
 type InputMap = Trie UnifiedEvent Input
 
 data Input = Chord [Note]

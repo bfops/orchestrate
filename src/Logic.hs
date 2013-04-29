@@ -13,16 +13,18 @@ import Data.Tuple
 import Sound.MIDI.Monad
 import Storage.Id
 import Storage.Map
-import Storage.Set
+import Storage.Set hiding (insert)
 
 import Input
 
 import Logic.Memory
 
+import Types
+
 bound :: (Ord a, Bounded a) => a -> a
 bound = min maxBound . max minBound
 
-song :: Stream Id (Maybe (Maybe Velocity, Input), Tick) [(Maybe Velocity, Note)]
+song :: Stream Id (Maybe (Maybe Velocity, Input), Tick) Chord
 song = updater (memory &&& noteLogic >>> loop (barr toSong) mempty) mempty
     where
         noteLogic = arr (fst >>> fst) >>> arr (map $ map $ fromChord >>> (<?> [])) &&& harmonies
@@ -34,9 +36,9 @@ harmonies = updater (barr $ try newInputMap) mempty >>> arr (toList >>> ((Nothin
         -- decide whether to add or remove elements
         addOrRemove v s = v $> (s <>) <?> (\\ s)
 
-toSong :: ([(Maybe Velocity, Note)], (Maybe (Maybe Velocity, [Note]), [Harmony]))
+toSong :: (Chord, (Maybe (Maybe Velocity, [Note]), [Harmony]))
        -> Map Note [Harmony]
-       -> ([(Maybe Velocity, Note)], Map Note [Harmony])
+       -> (Chord, Map Note [Harmony])
 toSong (sng, (Nothing, _)) h = (sng, h)
 toSong (sng, (Just (Just v, notes), hs)) hmap = let newNotes = harmonize . (Just v,) <$> notes <*> hs
                                                 in ( newNotes <> sng
