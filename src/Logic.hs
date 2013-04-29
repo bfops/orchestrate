@@ -1,19 +1,19 @@
 {-# LANGUAGE NoImplicitPrelude
            , TupleSections
+           , FlexibleContexts
            #-}
 module Logic ( song
              ) where
 
 import Prelewd
 
-import Impure
-
 import Control.Stream
+import Control.Stream.Input
 import Data.Tuple
 import Sound.MIDI.Monad
 import Storage.Id
-import Storage.Map
-import Storage.Set hiding (insert)
+import Storage.Multimap
+import Storage.Set
 
 import Input
 
@@ -25,32 +25,38 @@ bound :: (Ord a, Bounded a) => a -> a
 bound = min maxBound . max minBound
 
 song :: Stream Id (Maybe (Maybe Velocity, Input), Tick) Chord
-song = updater (memory &&& noteLogic >>> loop (barr toSong) mempty) mempty
+song = updater songStep mempty
     where
-        noteLogic = arr (fst >>> fst) >>> arr (map $ map $ fromChord >>> (<?> [])) &&& harmonies
+        songStep = memory <&> (<>) <*> noteLogic
+               >>> mapMaybe hold
 
-harmonies :: Stream Id (Maybe (Maybe Velocity, Input)) [Harmony]
-harmonies = updater (barr $ try newInputMap) mempty >>> arr (toList >>> ((Nothing, (Nothing, 0)) :))
+        noteLogic = arr (fst >>> fst)
+                >>> bind (barr $ \v i -> (v,) <$$> (Left <$$> fromChord i <|> Right <$$> fromHarmony i))
+                >>> map (concatMap $ (maybeNote &&& (held >>> rights) >>> arr (merge >>> map toNotes)) &&& arr snd
+                                 >>> notesOn <&> (<>) <*> notesOff
+                        )
+                >>> arr (<?> [])
+
+        rights = arr $ bind $ right >>> \m -> m <&> (:[]) <&> set <?> mempty
+
+        merge (x, y) = x <&> (, y)
+
+        maybeNote = arr (map left) >>> barr (liftA2 (,))
+
+        toNotes ((v, note), hs) = (set [Left note], (v, note))
+                                : (toList hs <&> \h -> (set [Left note, Right h], harmonize (v, note) h))
+
+notesOn :: Stream Id (Maybe [(Set (Either Note Harmony), (Velocity, Note))], Either Note Harmony) Chord
+notesOn = barr (\m _-> snd <$$> m <?> []) >>> arr (map $ map2 Just)
+
+notesOff :: Stream Id (Maybe [(Set (Either Note Harmony), (Velocity, Note))], Either Note Harmony) Chord
+notesOff = loop (barr offFunc) emptyMulti
     where
-        newInputMap (v, i) = try (flip $ foldr $ addOrRemove v . set . (:[])) $ fromHarmony i
-        -- decide whether to add or remove elements
-        addOrRemove v s = v $> (s <>) <?> (\\ s)
+        offFunc (Nothing, off) m = map2 ((Nothing,) <$>) $ multiremove off m <?> ([], m)
+        offFunc (Just ons, _) m = ([], foldr (toList *** snd >>> barr multinsert) m ons)
 
-toSong :: (Chord, (Maybe (Maybe Velocity, [Note]), [Harmony]))
-       -> Map Note [Harmony]
-       -> (Chord, Map Note [Harmony])
-toSong (sng, (Nothing, _)) h = (sng, h)
-toSong (sng, (Just (Just v, notes), hs)) hmap = let newNotes = harmonize . (Just v,) <$> notes <*> hs
-                                                in ( newNotes <> sng
-                                                   , foldr (`insert` hs) hmap notes
-                                                   )
-toSong (sng, (Just (Nothing, notes), _)) hmap = foldr newHarmonies (sng, hmap) notes
-    where
-        newHarmonies note (s, m) = let (hs, m') = remove note m <?> error "double-removal"
-                                   in ((harmonize (Nothing, note) <$> hs) <> s, m')
-
-harmonize :: (Maybe Velocity, Note) -> Harmony -> (Maybe Velocity, Note)
-harmonize (v, (p, i)) (dv, (inst, dp)) = ( fromIntegral . bound . try (+) dv . fromIntegral <$> v
+harmonize :: (Velocity, Note) -> Harmony -> (Velocity, Note)
+harmonize (v, (p, i)) (dv, (inst, dp)) = ( (fromIntegral >>> try (+) dv >>> bound >>> fromIntegral) v
                                          , (fromIntegral $ bound $ fromIntegral p + dp
                                            , try (\x _-> x) inst i
                                            )
