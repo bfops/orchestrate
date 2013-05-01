@@ -58,7 +58,7 @@ notes :: Stream MIDI () [(Maybe Velocity, Note)]
 notes = lift $ arr $ \_-> midiIn
 
 convertAll :: Stream Id [Either (Bool, Button) (Maybe Velocity, Note)] [(Maybe Velocity, Input)]
-convertAll = several (boolToVelocity >>> arr sequence2 >>> convert) >>> arr (mapMaybe id)
+convertAll = map (boolToVelocity >>> arr sequence2 >>> convert) >>> arr (mapMaybe id)
     where
         boolToVelocity = arr $ map2 $ map2 (`mcond` defaultVelocity)
 
