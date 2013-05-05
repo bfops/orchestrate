@@ -1,5 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude
            , TupleSections
+           , Arrows
            #-}
 -- | Main module, entry point
 module Main (main) where
@@ -36,10 +37,12 @@ main = runIO $ runGLFW displayOpts (0, 0 :: Integer) title $ do
         sendNotes notes = traverse_ (\(t, (mv, n)) -> (\v -> startNote t v n) <$> mv <?> stopNote t n) notes >> flush
 
         mainLoop = inputs <&> map Just <&> (Nothing:)
-               >>> map (id &&& deltaT >>> lift (song >>> arr (map (0, )) >>> arr sendNotes))
+               >>> map inputStep
                >>> mstream (ioMIDI $ \_-> updateGraphics >> io (sleep 0.01))
 
-        deltaT = identify (arr $ \_-> ()) >>> ticks >>> identify diff
+        inputStep = proc i -> do
+                        deltaT <- ticks >>> identify diff -< ()
+                        lift ((0,) <$$> song <&> sendNotes) -< (i, deltaT)
 
         diff = loop (barr $ \t t0 -> ((t -) <$> t0 <?> 0, Just t)) Nothing
 

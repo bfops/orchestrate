@@ -1,5 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude
            #-}
+-- | Map a series of keys incrementally to a value.
+-- (e.g. word autocompletion).
 module Storage.Trie( Trie (EmptyTrie, Value)
                    , fromMap
                    , mapWithKeys
@@ -18,8 +20,8 @@ import Storage.Map
 import Test.QuickCheck (Arbitrary (..), arbitrary)
 import Text.Show
 
-data Trie k v = EmptyTrie
-              | Value v
+data Trie k v = EmptyTrie               -- ^ The empty Trie
+              | Value v                 -- This Trie maps no keys, and simply holds a value.
               | Trie (Map k (Trie k v))
     deriving (Show, Eq)
 
@@ -54,6 +56,7 @@ trieAdd ks v t = triesert ks (Value v) t <?> t
 fromMap :: Ord k => Map [k] v -> Trie k v
 fromMap = foldrWithKey trieAdd EmptyTrie
 
+-- | Map a function across a Trie, including the keys as input.
 mapWithKeys :: ([k] -> a -> b) -> Trie k a -> Trie k b
 mapWithKeys f = keyMap []
     where
@@ -61,6 +64,7 @@ mapWithKeys f = keyMap []
         keyMap ks (Value v) = Value $ f (reverse ks) v
         keyMap ks (Trie m) = Trie $ mapMaybeWithKey (\k t -> Just $ keyMap (k:ks) t) m
 
+-- | Right-fold across a Trie, including the keys as input.
 foldrWithKeys :: Ord k => ([k] -> v -> a -> a) -> a -> Trie k v -> a
 foldrWithKeys f = keyFold []
     where
@@ -68,6 +72,7 @@ foldrWithKeys f = keyFold []
         keyFold ks a (Value v) = f (reverse ks) v a
         keyFold ks a (Trie m) = foldrWithKey (\k t a' -> keyFold (k:ks) a' t) a m
 
+-- | Left-fold across a Trie, including the keys as input.
 foldlWithKeys :: Ord k => ([k] -> v -> a -> a) -> a -> Trie k v -> a
 foldlWithKeys f = keyFold []
     where
@@ -75,10 +80,14 @@ foldlWithKeys f = keyFold []
         keyFold ks a (Value v) = f (reverse ks) v a
         keyFold ks a (Trie m) = foldlWithKey (\a' k t -> keyFold (k:ks) a' t) a m
 
+-- | Try using a key to move a step down a Trie.
+-- O(lg(n)), where `n` is the number of keys in the Trie.
 trie :: Ord k => k -> Trie k v -> Maybe (Trie k v)
 trie k (Trie m) = lookup k m
 trie _ _ = Nothing
 
+-- | Alter the subtrie at a location indexed by several keys.
+-- O(k*lg(n) - k*lg(k)), where `n` is the number of keys in the Trie, and `k` is the number of keys indexed.
 retrie :: Ord k => (Trie k v -> Trie k v) -> [k] -> Trie k v -> Maybe (Trie k v)
 retrie f [] t = Just $ f t
 retrie f (k:ks) EmptyTrie = Trie . singleton k <$> retrie f ks EmptyTrie
@@ -87,7 +96,7 @@ retrie f (k:ks) (Trie m) = retrie f ks (lookup k m <?> EmptyTrie)
                        <&> \t -> Trie $ insert k t m
 
 -- | Insert a subtrie into the trie.
--- If a subtrie already exists at these keys, it will be removed.
+-- If a subtrie already exists at these keys, it will be replaced.
 triesert :: Ord k
          => [k]         -- ^ Keys
          -> Trie k v    -- ^ Subtrie

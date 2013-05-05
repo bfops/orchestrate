@@ -1,5 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude
            #-}
+-- | Program-specific input types
 module Input ( Input (..)
              , UnifiedEvent
              , Harmony

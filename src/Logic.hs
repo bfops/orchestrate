@@ -1,6 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude
            , TupleSections
            , FlexibleContexts
+           , Arrows
            #-}
 module Logic ( song
              ) where
@@ -32,22 +33,21 @@ song = updater songStep mempty
 
         noteLogic = arr (fst >>> fst)
                 >>> bind (barr $ \v i -> (v,) <$$> (Left <$$> fromChord i <|> Right <$$> fromHarmony i))
-                >>> map (concatMap $ (maybeNote &&& (held >>> rights) >>> arr (merge >>> map toNotes)) &&& arr snd
-                                 >>> notesOn <&> (<>) <*> notesOff
-                        )
+                >>> map (concatMap inputToNotes)
                 >>> arr (<?> [])
 
-        rights = arr $ bind $ right >>> \m -> m <&> (:[]) <&> set <?> mempty
-
-        merge (x, y) = x <&> (, y)
-
-        maybeNote = arr (map left) >>> barr (liftA2 (,))
+        rights = bind $ right >>> \m -> try insert m mempty
 
         toNotes ((v, note), hs) = (set [Left note], (v, note))
                                 : (toList hs <&> \h -> (set [Left note, Right h], harmonize (v, note) h))
 
+        inputToNotes = proc (v, i) -> do
+                harmonies <- rights <$> held -< (v, i)
+                let notes = v <&> (,) <*> left i <&> (, harmonies) <&> toNotes
+                notesOn <&> (<>) <*> notesOff -< (notes, i)
+
 notesOn :: Stream Id (Maybe [(Set (Either Note Harmony), (Velocity, Note))], Either Note Harmony) Chord
-notesOn = barr (\m _-> snd <$$> m <?> []) >>> arr (map $ map2 Just)
+notesOn = barr (\m _-> snd <$$> m <?> []) <&> map (map2 Just)
 
 notesOff :: Stream Id (Maybe [(Set (Either Note Harmony), (Velocity, Note))], Either Note Harmony) Chord
 notesOff = loop (barr offFunc) emptyMulti
