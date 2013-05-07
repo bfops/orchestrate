@@ -8,6 +8,7 @@ module Logic.Memory( memory
 import Prelewd
 
 import Control.Stream
+import Control.Stream.Input
 import Data.Tuple
 import Storage.Id
 import Storage.List
@@ -29,6 +30,11 @@ type Song = SplitQueue (Tick, (Maybe Velocity, Note))
 type Toggle = Maybe Bool
 type TrackUpdate = ((Toggle, Tick), Chord)
 type Memory = Map Track (Stream Id TrackUpdate Chord)
+
+edge :: MonadPlus m => (a -> a -> Bool) -> a -> Stream Id (a, m b) (m b)
+edge f = loop $ barr edgeFunc
+    where
+        edgeFunc (next, out) prev = (guard (f prev next) >> out, next)
 
 toggle :: Num a => Maybe a -> Maybe a
 toggle m = m $> Nothing <?> Just 0
@@ -72,7 +78,13 @@ record = timer (fst >>> fst >>> fst >>> (== Just False)) (fst >>> fst >>> snd) $
         append notes t q = foldr enqSplit q $ (t,) <$> notes
 
 play :: Stream Id ((Toggle, Tick), Song) (Chord, Song)
-play = timer (fst >>> fst >>> (== Just True)) (fst >>> snd) $ barr playFunc
+play = timer (fst >>> fst >>> (== Just True)) (fst >>> snd)
+     $ proc (a, t) -> do
+            (toPlay, remain) <- barr playFunc -< (a, t)
+            currentlyPlaying <- mapMaybe hold >>> map held >>> arr last >>> latch mempty >>> arr toList -< toPlay
+            -- Release currently playing notes if the track stops
+            stop <- edge (>) False -< (t <&> (\_-> True) <?> False, currentlyPlaying)
+            id -< (toPlay <> ((Nothing,) <$> stop), remain)
     where
         playFunc (_, song) t = shiftTrack song <$> t <?> ([], reset song)
         shiftTrack song t = map2 (map snd) $ shiftWhile (fst >>> (<= t)) song
