@@ -1,4 +1,0 @@
-When multiple inputs cause the same note to play, don't act as though it's held
-
-Play the note with every new button push
-Shut off the note when all buttons are released

@@ -26,7 +26,7 @@ song :: Stream Id (Maybe (Maybe Velocity, Input), Tick) Chord
 song = updater songStep mempty
     where
         songStep = memory <&> (<>) <*> noteLogic
-               >>> mapMaybe hold
+               >>> mapMaybe holdOff
 
         noteLogic = arr (fst >>> fst)
                 >>> bind (barr $ \v i -> (v,) <$$> (Left <$$> fromChord i <|> Right <$$> fromHarmony i))
