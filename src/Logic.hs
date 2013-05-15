@@ -22,9 +22,6 @@ import Logic.Memory
 
 import Types
 
-bound :: (Ord a, Bounded a) => a -> a
-bound = min maxBound . max minBound
-
 song :: Stream Id (Maybe (Maybe Velocity, Input), Tick) Chord
 song = updater songStep mempty
     where
@@ -39,7 +36,7 @@ song = updater songStep mempty
         rights = bind $ right >>> \m -> try insert m mempty
 
         toNotes ((v, note), hs) = (set [Left note], (v, note))
-                                : (toList hs <&> \h -> (set [Left note, Right h], harmonize (v, note) h))
+                                : (toList hs <&> \h -> (set [Left note, Right h], harmonize h (v, note)))
 
         inputToNotes = proc (v, i) -> do
                 harmonies <- rights <$> held -< (v, i)
@@ -54,10 +51,3 @@ notesOff = loop (barr offFunc) emptyMulti
     where
         offFunc (Nothing, off) m = map2 ((Nothing,) <$>) $ multiremove off m <?> ([], m)
         offFunc (Just ons, _) m = ([], foldr (toList *** snd >>> barr multinsert) m ons)
-
-harmonize :: (Velocity, Note) -> Harmony -> (Velocity, Note)
-harmonize (v, (p, i)) (dv, (inst, dp)) = ( (fromIntegral >>> try (+) dv >>> bound >>> fromIntegral) v
-                                         , (fromIntegral $ bound $ fromIntegral p + dp
-                                           , try (\x _-> x) inst i
-                                           )
-                                         )

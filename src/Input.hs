@@ -11,6 +11,7 @@ module Input ( Input (..)
              , fromRecord
              , fromPlay
              , fromRemap
+             , harmonize
              ) where
 
 import Prelewd
@@ -24,6 +25,9 @@ import Text.Show
 import Wrappers.Events
 
 import Types
+
+bound :: (Ord a, Bounded a) => a -> a
+bound = min maxBound . max minBound
 
 type UnifiedEvent = Either Button Note
 -- | A Harmony consists of an optional velocity shift,
@@ -57,3 +61,10 @@ fromPlay _ = Nothing
 fromRemap :: Input -> Maybe InputMap
 fromRemap (Remap r) = Just r
 fromRemap _ = Nothing
+
+harmonize :: Harmony -> (Velocity, Note) -> (Velocity, Note)
+harmonize (dv, (inst, dp)) (v, (p, i)) = ( (fromIntegral >>> try (+) dv >>> bound >>> fromIntegral) v
+                                         , ( ((fromIntegral p +) >>> bound >>> fromIntegral) dp
+                                           , try (\x _-> x) inst i
+                                           )
+                                         )
