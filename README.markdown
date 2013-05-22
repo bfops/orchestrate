@@ -1,12 +1,21 @@
+# What is it
+
+Soundflow is designed to simplify the process of translating music from brain to computer.
+Rather than equating a keypress (or several) with a single note, a button can also add harmonies,
+loop a track, split your keyboard, or change it altogether.
+
+This is an evolving work, and more complex musical ideas will be added as it progresses.
+Even in its current incarnation, it can vastly simplify the playing of many songs.
+
 # Setting Up
 
 You will need:
 
  * Haskell
  * cabal
- * llvm
- * Step (https://github.com/RobotGymnast/Step)
+ * Summit (https://github.com/RobotGymnast/Summit)
  * Game-Wrappers (https://github.com/RobotGymnast/Game-Wrappers)
+ * midi-monad (https://github.com/RobotGymnast/midi-monad
 
 You can set up the build environment by running
 
