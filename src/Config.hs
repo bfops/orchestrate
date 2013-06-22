@@ -61,7 +61,9 @@ defaultVelocity = 64
 
 -- | What controls what?
 mapInput :: InputMap
-mapInput = fromMap (mapKeys (map Left) $ fromList $ harmonyButtons <> recordButtons) <> pianoMap
+mapInput = fromMap (mapKeys (map Left) $ fromList $ harmonyButtons <> recordButtons)
+        <> pianoMap
+        <> drumMIDI
     where
         harmonyButtons = map ((:[]) . KeyButton . CharKey *** Harmony)
                        $ [(numChar i, [(Nothing, (Nothing, Right $ fromInteger i))]) | i <- [1..9]]
@@ -77,6 +79,10 @@ piano = (, Instrument 0)
 
 pianoMIDI :: InputMap
 pianoMIDI = fromMap $ fromList $ ((:[]) . Right *** Chord) <$> [(piano n, [piano n]) | n <- [0..120]]
+
+drumMIDI :: InputMap
+drumMIDI = fromMap $ fromList $ ((:[]) . Right *** Chord) <$> [(drum n, [drum n]) | n <- [35..81]]
+    where drum = (, Percussion)
 
 pianoMap :: InputMap
 pianoMap = fromMap (fromList $ noteButtons <> harmonyButtons <> remapButtons) <> pianoMIDI
