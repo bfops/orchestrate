@@ -31,8 +31,8 @@ bound = min maxBound . max minBound
 
 type UnifiedEvent = Either Button Note
 -- | A Harmony consists of an optional velocity shift,
--- an optional instrument, and a pitch shift.
-type Harmony = (Maybe Int16, (Maybe Instrument, Int16))
+-- an optional instrument, and either a static pitch or a pitch shift
+type Harmony = (Maybe Int16, (Maybe Instrument, Either Pitch Int16))
 type InputMap = Trie UnifiedEvent Input
 
 data Input = Chord [Note]
@@ -64,7 +64,7 @@ fromRemap _ = Nothing
 
 harmonize :: Harmony -> (Velocity, Note) -> (Velocity, Note)
 harmonize (dv, (inst, dp)) (v, (p, i)) = ( (fromIntegral >>> try (+) dv >>> bound >>> fromIntegral) v
-                                         , ( ((fromIntegral p +) >>> bound >>> fromIntegral) dp
+                                         , ( either id ((fromIntegral p +) >>> bound >>> fromIntegral) dp
                                            , try (\x _-> x) inst i
                                            )
                                          )

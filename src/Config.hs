@@ -64,7 +64,8 @@ mapInput :: InputMap
 mapInput = fromMap (mapKeys (map Left) $ fromList $ harmonyButtons <> recordButtons) <> pianoMap
     where
         harmonyButtons = map ((:[]) . KeyButton . CharKey *** Harmony)
-            [(numChar i, [(Nothing, (Nothing, fromInteger i))]) | i <- [1..9]]
+                       $ [(numChar i, [(Nothing, (Nothing, Right $ fromInteger i))]) | i <- [1..9]]
+                      <> [('[', [(Just 32, (Just Percussion, Left 42))])]
 
         recordButtons = map (map (KeyButton . CharKey) *** id)
                       $ do i <- [1..9]
@@ -84,7 +85,7 @@ pianoMap = fromMap (fromList $ noteButtons <> harmonyButtons <> remapButtons) <>
             [("ASDFGHJK" ! i, [[48, 50, 52, 53, 55, 57, 59, 60] ! i]) | i <- [0..7]]
 
         harmonyButtons = map ((:[]) . Left . KeyButton . CharKey *** Harmony)
-            [("QWERTYUIOP" ! i, [(Just (-16), (Just $ Instrument 40, fromInteger i))]) | i <- [0..9]]
+            [("QWERTYUIOP" ! i, [(Just (-16), (Just $ Instrument 40, Right $ fromInteger i))]) | i <- [0..9]]
 
         remapButtons = map ((:[]) . Left . KeyButton . CharKey *** Remap)
             [ (';', violinMap)
@@ -101,7 +102,7 @@ violinMap = fromMap
             [("ASDFGHJK" ! i, [[48, 50, 52, 53, 55, 57, 59, 60] ! i]) | i <- [0..7]]
 
         harmonyButtons = map ((:[]) . KeyButton . CharKey *** Harmony)
-            [("QWERTYUIOP" ! i, [(Just 8, (Just $ Instrument 0, fromInteger i))]) | i <- [0..9]]
+            [("QWERTYUIOP" ! i, [(Just 8, (Just $ Instrument 0, Right $ fromInteger i))]) | i <- [0..9]]
 
         remapButtons = map ((:[]) . KeyButton . CharKey *** Remap)
             [ (';', pianoMap)
