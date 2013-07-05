@@ -32,6 +32,8 @@ test-suite Tests
                     QuickCheck >= 2,
                     Summit,
                     HUnit,
+                    Game-Wrappers,
+                    midi-monad,
                     test-framework-quickcheck2,
                     test-framework-hunit,
                     test-framework-th,
