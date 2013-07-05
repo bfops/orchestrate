@@ -26,6 +26,7 @@ import Wrappers.Events
 
 import Types
 
+-- | Cap a number between its min and max.
 bound :: (Ord a, Bounded a) => a -> a
 bound = min maxBound . max minBound
 
@@ -62,9 +63,10 @@ fromRemap :: Input -> Maybe InputMap
 fromRemap (Remap r) = Just r
 fromRemap _ = Nothing
 
+-- | Apply a harmony to a note.
 harmonize :: Harmony -> (Velocity, Note) -> (Velocity, Note)
 harmonize (dv, (inst, dp)) (v, (p, i)) = ( (fromIntegral >>> try (+) dv >>> bound >>> fromIntegral) v
                                          , ( either id ((fromIntegral p +) >>> bound >>> fromIntegral) dp
-                                           , try (\x _-> x) inst i
+                                           , inst <?> i
                                            )
                                          )

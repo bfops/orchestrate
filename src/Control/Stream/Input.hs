@@ -1,6 +1,4 @@
 {-# LANGUAGE NoImplicitPrelude
-           , TupleSections
-           , FlexibleContexts
            #-}
 -- | Input-output conversion helper Streams
 module Control.Stream.Input( hold
@@ -34,6 +32,6 @@ hold = holdOff >>> bind (loop (barr holdFunc) mempty)
         holdFunc (Just a, b) cxt = let cxt' = refInsert b cxt
                                    in (mcond (Map.lookup b cxt' == Just 1) (Just a, b), cxt')
 
--- | Keep track of held inputs.
+-- | Keep track of held inputs. The `b` values don't matter.
 held :: Ord a => Stream Id (Maybe b, a) (Set.Set a)
 held = updater (barr $ barr $ \b -> b $> Set.insert <?> Set.delete) mempty

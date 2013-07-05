@@ -11,21 +11,22 @@ Cabal-Version:       >= 1.9.2
 Executable Soundflow
     hs-source-dirs: src/
     Main-is:        Main.hs
-    GHC-Options:    -Wall -Werror -threaded -rtsopts=all -fllvm -fno-warn-orphans
+    GHC-Options:    -Wall -Werror -threaded -rtsopts=all
 
     Build-Depends: 
-                    Summit == 0.12,
+                    Summit == 0.13,
                     Game-Wrappers == 0.2,
                     QuickCheck >= 2,
-                    midi-monad == 0.4,
+                    midi-monad == 0.5,
                     base
 
 test-suite Tests
     type:           exitcode-stdio-1.0
     hs-source-dirs: test/
                     src/
-    main-is:        Test.hs
-    extensions:     TupleSections, TemplateHaskell, NoImplicitPrelude, BangPatterns
+    main-is:        Main.hs
+    GHC-Options:    -Wall -Werror
+    extensions:     TupleSections, TemplateHaskell, NoImplicitPrelude
 
     build-depends:
                     QuickCheck >= 2,

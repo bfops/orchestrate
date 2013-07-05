@@ -2,18 +2,9 @@ module Trie (test) where
 
 import Prelewd
 
-import Impure
+import Test
 
-import Data.Char
-import Data.Tuple
-import Storage.Id
-import Storage.Map
 import Storage.Trie
-
-import Test.Framework
-import Test.Framework.TH
-import Test.Framework.Providers.QuickCheck2
-import Test.Framework.Providers.HUnit
 
 test :: Test
 test = $(testGroupGenerator)

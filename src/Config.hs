@@ -7,6 +7,7 @@ module Config ( windowSize
               , title
               , inMIDI
               , outMIDI
+              , drumChannel
               , bpm
               , granularity
               , defaultVelocity
@@ -42,9 +43,16 @@ displayOpts = defaultDisplayOptions
 title :: Text
 title = "Soundflow"
 
-outMIDI, inMIDI :: Text
-outMIDI = "128:0"
-inMIDI = "14:0"
+-- | Output MIDI destinations
+outMIDI :: [Text]
+outMIDI = ["128:0"]
+
+-- | Map MIDI sources to instruments
+inMIDI :: Map Text Instrument
+inMIDI = fromList []
+
+drumChannel :: Num a => a
+drumChannel = 9
 
 -- | Beats per minute
 bpm :: Integer
@@ -61,7 +69,7 @@ defaultVelocity = 64
 
 -- | What controls what?
 mapInput :: InputMap
-mapInput = fromMap (mapKeys (map Left) $ fromList $ harmonyButtons <> recordButtons)
+mapInput = fromMap (map2 (map Left) $ fromList $ harmonyButtons <> recordButtons)
         <> pianoMap
         <> drumMIDI
     where
@@ -99,8 +107,8 @@ pianoMap = fromMap (fromList $ noteButtons <> harmonyButtons <> remapButtons) <>
 
 violinMap :: InputMap
 violinMap = fromMap
-          $ mapKeys (map Left) (fromList $ noteButtons <> harmonyButtons <> remapButtons)
-         <> mapKeys (map Right) (fromList violinMIDI)
+          $ map2 (map Left) (fromList $ noteButtons <> harmonyButtons <> remapButtons)
+         <> map2 (map Right) (fromList violinMIDI)
     where
         violin = (, Instrument 40)
 

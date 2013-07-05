@@ -34,15 +34,18 @@ main = runIO $ runGLFW displayOpts (0, 0 :: Integer) title $ do
         runMIDI title outMIDI inMIDI $ tempo (div 60000000 bpm)
                                     >> iterateM_ (map snd . ($< ())) mainLoop
     where
-        sendNotes notes = traverse_ (\(t, (mv, n)) -> (\v -> startNote t v n) <$> mv <?> stopNote t n) notes >> flush
-
-        mainLoop = inputs <&> map Just <&> (Nothing:)
+        mainLoop = inputs <&> map Just <&> (Nothing:) -- Add an update with no inputs,
+                                                      -- so we're updating at least once per iteration.
                >>> map inputStep
                >>> mstream (ioMIDI $ \_-> updateGraphics >> io (sleep 0.01))
 
         inputStep = proc i -> do
                         deltaT <- ticks >>> identify diff -< ()
                         lift ((0,) <$$> song <&> sendNotes) -< (i, deltaT)
+
+        sendNotes notes = traverse_ sendNote notes >> flush
+        sendNote (t, (mv, n)) = (\v -> startNote drumChannel t v n) <$> mv
+                            <?> stopNote drumChannel t n
 
         diff = loop (barr $ \t t0 -> ((t -) <$> t0 <?> 0, Just t)) Nothing
 

@@ -1,6 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude
            , TupleSections
-           , FlexibleContexts
            , Arrows
            #-}
 module Logic ( song

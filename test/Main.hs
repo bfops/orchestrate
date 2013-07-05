@@ -2,9 +2,9 @@ module Main (main) where
 
 import IO
 
-import Test.Framework
+import Test
 
-import Trie
+import qualified Trie
 
 main :: SystemIO ()
 main = defaultMain
