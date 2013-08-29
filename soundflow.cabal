@@ -22,11 +22,9 @@ Executable Soundflow
 
 test-suite Tests
     type:           exitcode-stdio-1.0
-    hs-source-dirs: test/
-                    src/
-    main-is:        Main.hs
+    hs-source-dirs: src/
+    main-is:        TestMain.hs
     GHC-Options:    -Wall -Werror
-    extensions:     TupleSections, TemplateHaskell, NoImplicitPrelude
 
     build-depends:
                     QuickCheck >= 2,
