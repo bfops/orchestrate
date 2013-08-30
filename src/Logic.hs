@@ -59,7 +59,7 @@ test :: Test
 test = $(testGroupGenerator)
 
 prop_notes :: [(Velocity, Set Note)] -> Result
-prop_notes = streamTest song $ \notes -> do
+prop_notes = streamTestEq song $ \notes -> do
                         (v, chord) <- toList <$$> take 16 notes
                         [ ioPair (Just v) chord, ioPair Nothing chord ]
     where
@@ -69,7 +69,7 @@ prop_notes = streamTest song $ \notes -> do
                          )
 
 prop_harmony :: [(Velocity, ([Harmony], [Note]))] -> Result
-prop_harmony = streamTest (set <$> song)
+prop_harmony = streamTestEq (set <$> song)
              $ preprocess
            >>> \inputs -> do
                     (v, (harmonies, notes)) <- inputs

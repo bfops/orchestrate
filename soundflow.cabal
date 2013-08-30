@@ -14,7 +14,7 @@ Executable Soundflow
     GHC-Options:    -Wall -Werror -threaded -rtsopts=all
 
     Build-Depends: 
-                    Summit == 0.13,
+                    Summit == 0.14,
                     Game-Wrappers == 0.2,
                     QuickCheck >= 2,
                     midi-monad == 0.5,
