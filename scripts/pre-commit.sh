@@ -16,9 +16,6 @@ rm -f .git/hooks/pre-commit &&
 git commit -m "Temp" > /dev/null &&
 git reset --hard HEAD > /dev/null &&
 git clean -fd > /dev/null &&
-scripts/setup.sh &&
-scripts/build.sh &&
-echo &&
 scripts/test.sh &&
 echo &&
 scripts/linecheck.sh &&
