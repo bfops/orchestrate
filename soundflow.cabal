@@ -18,6 +18,7 @@ Executable Soundflow
                     Game-Wrappers == 0.2,
                     QuickCheck >= 2,
                     midi-monad == 0.5,
+                    vector,
                     base
 
 test-suite Tests
@@ -32,6 +33,7 @@ test-suite Tests
                     HUnit,
                     Game-Wrappers,
                     midi-monad,
+                    vector,
                     test-framework-quickcheck2,
                     test-framework-hunit,
                     test-framework-th,
