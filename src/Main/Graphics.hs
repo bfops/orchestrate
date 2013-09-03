@@ -5,9 +5,9 @@ module Main.Graphics ( initOpenGL
                      , updateGraphics
                      ) where
 
-import Prelewd
+import Summit.Prelewd
 
-import IO
+import Summit.IO
 
 import Wrappers.Events
 import Wrappers.GLFW

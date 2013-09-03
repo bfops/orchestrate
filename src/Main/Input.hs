@@ -6,15 +6,15 @@
 module Main.Input( inputs
                  ) where
 
-import Prelewd
-import Impure
+import Summit.Prelewd
+import Summit.Impure
 
-import Control.Stream
+import Summit.Control.Stream
 import Control.Stream.Input
-import Storage.Id
-import Storage.Map
-import Storage.Trie
-import Template.MemberTransformer
+import Summit.Data.Id
+import Summit.Data.Map
+import Data.Trie
+import Summit.Template.MemberTransformer
 
 import Wrappers.Events
 

@@ -7,18 +7,18 @@ module Logic ( song
              , Logic.test
              ) where
 
-import Prelewd
+import Summit.Prelewd
 
-import Test
+import Summit.Test
 
-import Control.Stream
+import Summit.Control.Stream
 import Control.Stream.Input
 import Data.Tuple
 import Sound.MIDI.Monad
-import Storage.Id
-import Storage.List (take)
-import Storage.Multimap
-import Storage.Set
+import Summit.Data.Id
+import Summit.Data.List (take)
+import Data.Multimap
+import Summit.Data.Set
 
 import Logic.Memory
 
@@ -52,7 +52,7 @@ notesOn = barr (\m _-> snd <$$> m <?> []) <&> map (map2 Just)
 notesOff :: Stream Id (Maybe [(Set (Either Note Harmony), (Velocity, Note))], Either Note Harmony) Chord
 notesOff = loop (barr offFunc) emptyMulti
     where
-        offFunc (Nothing, off) m = map2 ((Nothing,) <$>) $ multiremove off m <?> ([], m)
+        offFunc (Nothing, off) m = ((Nothing,) <$>) <.> (multiremove off m <?> ([], m))
         offFunc (Just ons, _) m = ([], foldr (toList *** snd >>> barr multinsert) m ons)
 
 test :: Test
@@ -77,7 +77,7 @@ prop_harmony = preprocess
                     let outNotes = set $ harmonize <$> harmonies <*> ((v,) <$> notes)
                         setNotes = (v,) <$> set notes
                     ioPair <$> [ ((Just v, Harmony harmonies), mempty)
-                               , ((Just v, Chord notes), map2 Just <$> setNotes <> outNotes)
+                                , ((Just v, Chord notes), (Just <.>) <$> setNotes <> outNotes)
                                , ((Nothing, Harmony harmonies), unheld outNotes $ setNotes)
                                , ((Nothing, Chord notes), off <$> setNotes)
                                ]

@@ -14,11 +14,11 @@ module Input ( Input (..)
              , harmonize
              ) where
 
-import Prelewd
+import Summit.Prelewd
+import Data.Trie
 
 import Data.Int
 import Sound.MIDI.Monad.Types
-import Storage.Trie
 
 import Text.Show
 

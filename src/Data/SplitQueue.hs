@@ -1,7 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude
            #-}
 -- | A Queue with a sliding window of focus (e.g. a playback track).
-module Storage.SplitQueue( SplitQueue
+module Data.SplitQueue( SplitQueue
                          , emptySplit
                          , reset
                          , remaining
@@ -12,7 +12,7 @@ module Storage.SplitQueue( SplitQueue
 
 import Prelewd
 
-import Storage.Queue
+import Data.Queue
 import Text.Show
 
 data SplitQueue a = SplitQueue (Queue a) (Queue a)

@@ -3,24 +3,23 @@
            #-}
 -- | Map a series of keys incrementally to a value.
 -- (e.g. word autocompletion).
-module Storage.Trie( Trie (EmptyTrie, Value)
-                   , fromMap
-                   , mapWithKeys
-                   , foldrWithKeys
-                   , foldlWithKeys
-                   , trie
-                   , retrie
-                   , triesert
-                   , notrie
-                   , Storage.Trie.test
-                   ) where
+module Data.Trie( Trie (EmptyTrie, Value)
+                , fromMap
+                , mapWithKeys
+                , foldrWithKeys
+                , foldlWithKeys
+                , trie
+                , retrie
+                , triesert
+                , notrie
+                , Data.Trie.test
+                ) where
 
-import Prelewd
+import Summit.Data.List
+import Summit.Data.Map
+import Summit.Prelewd
+import Summit.Test
 
-import Test
-
-import Storage.List
-import Storage.Map
 import Text.Show
 
 data Trie k v = EmptyTrie               -- ^ The empty Trie

@@ -14,12 +14,12 @@ module Config ( windowSize
               , mapInput
               ) where
 
-import Prelewd
+import Summit.Prelewd
 
 import Data.Char
 import Data.Tuple
-import Storage.Map
-import Storage.Trie
+import Summit.Data.Map
+import Data.Trie
 
 import Sound.MIDI.Monad.Types
 
@@ -69,7 +69,7 @@ defaultVelocity = 64
 
 -- | What controls what?
 mapInput :: InputMap
-mapInput = fromMap (map2 (map Left) $ fromList $ harmonyButtons <> recordButtons)
+mapInput = fromMap (map Left <.> fromList (harmonyButtons <> recordButtons))
         <> pianoMap
         <> drumMIDI
     where
@@ -77,7 +77,7 @@ mapInput = fromMap (map2 (map Left) $ fromList $ harmonyButtons <> recordButtons
                        $ [(numChar i, [(Nothing, (Nothing, Right $ fromInteger i))]) | i <- [1..9]]
                       <> [('[', [(Just 32, (Just Percussion, Left 42))])]
 
-        recordButtons = map (map (KeyButton . CharKey) *** id)
+        recordButtons = map (map2 $ map (KeyButton . CharKey))
                       $ do i <- [1..9]
                            let c = numChar i
                            [(['Z', c], Record i), (['X', c], Play i)]
@@ -107,8 +107,8 @@ pianoMap = fromMap (fromList $ noteButtons <> harmonyButtons <> remapButtons) <>
 
 violinMap :: InputMap
 violinMap = fromMap
-          $ map2 (map Left) (fromList $ noteButtons <> harmonyButtons <> remapButtons)
-         <> map2 (map Right) (fromList violinMIDI)
+          $ (map Left <.> fromList (noteButtons <> harmonyButtons <> remapButtons))
+         <> (map Right <.> fromList violinMIDI)
     where
         violin = (, Instrument 40)
 
