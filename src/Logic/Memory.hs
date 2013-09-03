@@ -12,6 +12,7 @@ import Impure (error)
 import Control.Stream
 import Control.Stream.Input
 import Data.Tuple
+import Data.Maybe (isJust)
 import Data.Vector as V (Vector, snoc, slice, length, (!))
 import Storage.Id
 import Storage.KVP (KVP (..), kvp)
@@ -23,9 +24,6 @@ import Sound.MIDI.Monad.Types
 import Input
 import Types
 
-isJust :: Maybe a -> Bool
-isJust m = m <&> (\_-> True) <?> False
-
 -- | Stream that produces the previous value it received.
 previous :: a -> Stream Id a a
 previous = loop $ arr swap
@@ -34,7 +32,7 @@ previous = loop $ arr swap
 -- Iff Nothing was received, produce a default value.
 previousJust :: a       -- ^ Default value
              -> Stream Id (Maybe a) a
-previousJust v0 = previous (Just v0) >>> arr (<?> v0)
+previousJust v0 = previous Nothing <&> (<?> v0)
 
 withPrev :: a -> Stream Id (a, a) b -> Stream Id a b
 withPrev a0 s = previous a0 &&& id >>> s
@@ -94,8 +92,9 @@ inRange l h v = let
                   ih = 1 + bsearch h v
                 in toList $ sliceRange il ih v
 
-accumulateTime :: Stream Id (Maybe Tick) (Maybe Tick)
-accumulateTime = updater (barr addJust) (Just 0)
+-- | Sums up the Justs since the last Nothing.
+timer :: Num a => Stream Id (Maybe a) (Maybe a)
+timer = updater (barr addJust) Nothing
   where
     addJust x y = liftA2 (+) x y <|> x
 
@@ -104,7 +103,7 @@ createTrack :: Track -> Memory -> Memory
 createTrack = alter (<|> Just track)
 
 memory :: Stream Id ((Maybe (Maybe Velocity, Input), Tick), Chord) Chord
-memory = loop (barr memoryFunc) mempty >>> arr concat
+memory = loop (barr memoryFunc) mempty <&> concat
     where
         whichTrack mi = do
                         (v, i) <- mi
@@ -129,28 +128,36 @@ track = proc ((stateSwitch, dt), notes) -> do
         toggleOn v = updater $ barr $ \x -> if' (x == v) not
 
 record :: Stream Id (Maybe Tick, Chord) RecordedData
-record = map2 accumulateTime
-     >>> updater (reset >>> barr appendSong) mempty
+record = map2 timer
+     >>> updater updateRecorded mempty
   where
-      reset = proc ((t, notes), song) -> do
-                song' <- medge (>=) False -< (isJust t, song)
-                id -< ((notes, t), song')
+      updateRecorded = proc ((t, notes), song) -> do
+                song' <- tryResetRecording -< (isJust t, song)
+                id -< try (append notes) t song'
 
-      appendSong = barr $ try . append
+      tryResetRecording = medge (>=) False
+
       append notes t v = if V.length v >= 0x7FFFFFFF
                          then error "Ran out of space for recording data."
                          else snoc v $ KVP t notes
 
 play :: Stream Id (Maybe Tick, RecordedData) Chord
-play = map2 (accumulateTime >>> previousJust 0 &&& id)
-   >>> proc ((t0, t), song) -> do
-      toPlay <- barr playFunc >>> mapMaybe hold -< (song, (t0, t))
-      current <- currentlyPlaying >>> arr toList -< toPlay
-      -- Release currently playing notes if the track stops
-      toStop <- fallingEdge -< (isJust t, current)
-      id -< toPlay <> ((Nothing,) <$> toStop)
+play = map2 withPreviousTime
+   >>> proc ((tPrev, tCurrent), song) -> do
+      notesToPlay <- mapMaybe holdOff
+                  -< newPlayNotes song tPrev <$> tCurrent <?> []
+      notesToStop <- arr isJust *** currentlyPlaying
+                 >>> releaseOnFallingEdge
+                  -< (tCurrent, notesToPlay)
+      id -< notesToPlay <> ((Nothing,) <$> notesToStop)
     where
-      fallingEdge = medge (>) False
-      currentlyPlaying = map held >>> arr last >>> latch mempty
-      playFunc song (t0, t) = newlyPlayed song t0 <$> t <?> []
-      newlyPlayed song t0 t = concatMap value $ inRange (kvp t0) (kvp t) song
+      releaseOnFallingEdge = medge (>) False
+
+      withPreviousTime = timer >>> previousJust 0 &&& id
+
+      currentlyPlaying = map held
+                     <&> last
+                     >>> latch mempty
+                     <&> toList
+
+      newPlayNotes song t0 t = concatMap value $ inRange (kvp t0) (kvp t) song
