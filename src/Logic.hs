@@ -7,18 +7,18 @@ module Logic ( song
              , Logic.test
              ) where
 
-import Prelewd
+import Summit.Prelewd
 
-import Test
+import Summit.Test
 
-import Control.Stream
+import Summit.Control.Stream
 import Control.Stream.Input
 import Data.Tuple
 import Sound.MIDI.Monad
-import Storage.Id
-import Storage.List (take)
-import Storage.Multimap
-import Storage.Set
+import Summit.Data.Id
+import Summit.Data.List (take)
+import Data.Multimap
+import Summit.Data.Set
 
 import Logic.Memory
 
@@ -26,7 +26,7 @@ import Input
 import Types
 
 song :: Stream Id (Maybe (Maybe Velocity, Input), Tick) Chord
-song = updater songStep mempty
+song = folds songStep mempty
     where
         songStep = memory <&> (<>) <*> noteLogic
                >>> mapMaybe holdOff
@@ -52,16 +52,18 @@ notesOn = barr (\m _-> snd <$$> m <?> []) <&> map (map2 Just)
 notesOff :: Stream Id (Maybe [(Set (Either Note Harmony), (Velocity, Note))], Either Note Harmony) Chord
 notesOff = loop (barr offFunc) emptyMulti
     where
-        offFunc (Nothing, off) m = map2 ((Nothing,) <$>) $ multiremove off m <?> ([], m)
+        offFunc (Nothing, off) m = ((Nothing,) <$>) <.> (multiremove off m <?> ([], m))
         offFunc (Just ons, _) m = ([], foldr (toList *** snd >>> barr multinsert) m ons)
 
 test :: Test
 test = $(testGroupGenerator)
 
 prop_notes :: [(Velocity, Set Note)] -> Result
-prop_notes = streamTestEq song $ \notes -> do
+prop_notes = (\notes -> do
                         (v, chord) <- toList <$$> take 16 notes
                         [ ioPair (Just v) chord, ioPair Nothing chord ]
+             )
+         >>> streamTestEq song
     where
         -- input to expected output pairing for the stream
         ioPair v chord = ( (Just (v, Chord chord), 0)
@@ -69,17 +71,18 @@ prop_notes = streamTestEq song $ \notes -> do
                          )
 
 prop_harmony :: [(Velocity, ([Harmony], [Note]))] -> Result
-prop_harmony = streamTestEq (set <$> song)
-             $ preprocess
-           >>> \inputs -> do
+prop_harmony = preprocess
+           >>> (\inputs -> do
                     (v, (harmonies, notes)) <- inputs
                     let outNotes = set $ harmonize <$> harmonies <*> ((v,) <$> notes)
                         setNotes = (v,) <$> set notes
                     ioPair <$> [ ((Just v, Harmony harmonies), mempty)
-                               , ((Just v, Chord notes), map2 Just <$> setNotes <> outNotes)
+                                , ((Just v, Chord notes), (Just <.>) <$> setNotes <> outNotes)
                                , ((Nothing, Harmony harmonies), unheld outNotes $ setNotes)
                                , ((Nothing, Chord notes), off <$> setNotes)
                                ]
+               )
+           >>> streamTestEq (set <$> song)
     where
         reduceInput :: Ord a => [a] -> [a]
         reduceInput = take 16 >>> set >>> toList

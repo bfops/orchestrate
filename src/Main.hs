@@ -5,11 +5,11 @@
 -- | Main module, entry point
 module Main (main) where
 
-import Prelewd
+import Summit.Prelewd
 
-import IO
+import Summit.IO
 
-import Control.Stream
+import Summit.Control.Stream
 import Data.Tuple
 
 import Wrappers.GLFW

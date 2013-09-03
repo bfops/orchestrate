@@ -6,16 +6,16 @@ module Control.Stream.Input( hold
                            , held
                            ) where
 
-import Prelewd
+import Summit.Prelewd
 
-import Impure
+import Summit.Impure
 
-import Control.Stream
+import Summit.Control.Stream
 import Data.Maybe (isNothing)
-import Storage.Id
-import qualified Storage.Map as Map
-import Storage.Refcount
-import qualified Storage.Set as Set
+import Summit.Data.Refcount
+import Summit.Data.Id
+import qualified Summit.Data.Map as Map
+import qualified Summit.Data.Set as Set
 
 -- | Refcount inputs and only send a release signal when they've all been released.
 holdOff :: Ord b => Stream Id (Maybe a, b) (Maybe (Maybe a, b))
@@ -41,4 +41,4 @@ hold = holdOff >>> bind (loop (barr holdFunc) mempty)
 
 -- | Keep track of held inputs. The `b` values don't matter.
 held :: Ord a => Stream Id (Maybe b, a) (Set.Set a)
-held = updater (barr $ barr $ \b -> b $> Set.insert <?> Set.delete) mempty
+held = folds (barr $ barr $ \b -> b $> Set.insert <?> Set.delete) mempty

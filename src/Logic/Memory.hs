@@ -5,19 +5,19 @@
 module Logic.Memory( memory
                    ) where
 
-import Prelewd hiding ((!))
+import Summit.Prelewd hiding ((!))
 
-import Impure (error)
+import Summit.Impure (error)
 
-import Control.Stream
+import Summit.Control.Stream
 import Control.Stream.Input
 import Data.Tuple
 import Data.Maybe (isJust)
 import Data.Vector as V (Vector, snoc, slice, length, (!))
-import Storage.Id
-import Storage.KVP (KVP (..), kvp)
-import Storage.List as L (unzip, zip, last)
-import Storage.Map as M (Map, alter, mapWithKey, assocs, fromList)
+import Summit.Data.Id
+import Data.KVP (KVP (..), kvp)
+import Summit.Data.List as L (unzip, zip, last)
+import Summit.Data.Map as M (Map, alter, mapWithKey, assocs, fromList)
 
 import Sound.MIDI.Monad.Types
 
@@ -45,7 +45,7 @@ edge :: (a -> a -> Bool)    -- ^ Predicate to determine which values to send.
      -> b                   -- ^ Value to be sent when the predicate is False.
      -> a                   -- ^ Initial state to use for the predicate.
      -> Stream Id (a, b) b
-edge f b0 a0 = map2 (withPrev a0 $ barr f)
+edge f b0 a0 = map2 (withPrev a0 (barr f))
            <&> \(sendThrough, out) -> iff sendThrough out b0
 
 -- | `edge` using `mzero` as the default value.
@@ -94,7 +94,7 @@ inRange l h v = let
 
 -- | Sums up the Justs since the last Nothing.
 timer :: Num a => Stream Id (Maybe a) (Maybe a)
-timer = updater (barr addJust) Nothing
+timer = folds (barr addJust) Nothing
   where
     addJust x y = liftA2 (+) x y <|> x
 
@@ -125,11 +125,11 @@ track = proc ((stateSwitch, dt), notes) -> do
     where
         recordUpdate = map2 (toggleOn (Just False) False) >>> barr mcond
         playUpdate = map2 (toggleOn (Just True) False) >>> barr mcond
-        toggleOn v = updater $ barr $ \x -> if' (x == v) not
+        toggleOn v = folds $ barr $ \x -> if' (x == v) not
 
 record :: Stream Id (Maybe Tick, Chord) RecordedData
 record = map2 timer
-     >>> updater updateRecorded mempty
+     >>> folds updateRecorded mempty
   where
       updateRecorded = proc ((t, notes), song) -> do
                 song' <- tryResetRecording -< (isJust t, song)

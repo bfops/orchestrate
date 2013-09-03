@@ -1,9 +1,9 @@
-import IO
+import Summit.IO
 
-import Test
+import Summit.Test
 
 import qualified Logic
-import qualified Storage.Trie as Trie
+import qualified Data.Trie as Trie
 
 main :: SystemIO ()
 main = defaultMain

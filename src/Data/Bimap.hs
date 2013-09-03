@@ -2,7 +2,7 @@
 {-# LANGUAGE NoImplicitPrelude
            , TupleSections
            #-}
-module Storage.Bimap( Bimap
+module Data.Bimap( Bimap
                     , reflect
                     , bilookup
                     , binsert
@@ -10,11 +10,11 @@ module Storage.Bimap( Bimap
                     , biremove
                     ) where
 
-import Prelewd
+import Summit.Prelewd
 
 import Data.Tuple
-import Storage.Map hiding (insert, delete)
-import Storage.Set
+import Summit.Data.Map hiding (insert, delete)
+import Summit.Data.Set
 import Text.Show
 
 data Bimap a b = Bimap { bs :: (Map a (Set b))

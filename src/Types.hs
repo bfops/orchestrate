@@ -4,7 +4,7 @@ module Types( Chord
             , Track
             ) where
 
-import Prelewd
+import Summit.Prelewd
 
 import Sound.MIDI.Monad
 

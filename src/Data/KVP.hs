@@ -1,13 +1,13 @@
 {-# LANGUAGE NoImplicitPrelude
            #-}
-module Storage.KVP( KVP (..)
+module Data.KVP( KVP (..)
                   , kvp
                   ) where
 
-import Prelewd
+import Summit.Prelewd
 
-import Impure
-import Test
+import Summit.Impure
+import Summit.Test
 
 import Text.Show
 

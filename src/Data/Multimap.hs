@@ -3,19 +3,19 @@
            #-}
 -- | A Multimap maps a set of keys to a single value.
 -- Aside from lookup, these keys are used as one cohesive group.
-module Storage.Multimap( Multimap
-                       , emptyMulti
-                       , multinsert
-                       , multilookup
-                       , multidelete
-                       , multiremove
-                       ) where
+module Data.Multimap( Multimap
+                    , emptyMulti
+                    , multinsert
+                    , multilookup
+                    , multidelete
+                    , multiremove
+                    ) where
 
-import Prelewd
+import Summit.Prelewd
 
 import Data.Tuple
-import Storage.Bimap
-import Storage.Map
+import Data.Bimap
+import Summit.Data.Map
 import Text.Show
 
 -- | Assign multiple codependent keys to a single value.
@@ -40,7 +40,7 @@ multiremove k (Multimap l r) = do (is, l') <- biremove k l
                                   (vs, r') <- foldrM removes (mempty, r) is
                                   return (vs, Multimap l'' r')
     where
-        removes i (vs, m) = map2 (:vs) <$> remove i m
+        removes i (vs, m) = ((:vs) <.>) <$> remove i m
 
 -- Find all the values to which a key is mapped.
 -- | O(lg(k) + i*lg(i))
