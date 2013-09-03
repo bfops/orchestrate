@@ -11,6 +11,7 @@ import Prelewd
 import Impure
 
 import Control.Stream
+import Data.Maybe (isNothing)
 import Storage.Id
 import qualified Storage.Map as Map
 import Storage.Refcount
@@ -20,8 +21,14 @@ import qualified Storage.Set as Set
 holdOff :: Ord b => Stream Id (Maybe a, b) (Maybe (Maybe a, b))
 holdOff = loop (barr holdFunc) mempty
     where
-        holdFunc (Nothing, b) cxt = let cxt' = refDelete b cxt <?> error "Released unpressed input"
-                                    in (mcond (Map.lookup b cxt' == Nothing) (Nothing, b), cxt')
+        holdFunc (Nothing, b) cxt = refDelete b cxt
+                                <&> (\cxt' ->
+                                    ( mcond (isNothing $ Map.lookup b cxt')
+                                            (Nothing, b)
+                                    , cxt'
+                                    )
+                                    )
+                                <?> (Nothing, cxt)
         holdFunc (Just a, b) cxt = (Just (Just a, b), refInsert b cxt)
 
 -- | `holdOff`, with the extra functionality of only sending the first of the on signals.
