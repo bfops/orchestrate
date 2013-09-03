@@ -41,4 +41,4 @@ hold = holdOff >>> bind (loop (barr holdFunc) mempty)
 
 -- | Keep track of held inputs. The `b` values don't matter.
 held :: Ord a => Stream Id (Maybe b, a) (Set.Set a)
-held = updater (barr $ barr $ \b -> b $> Set.insert <?> Set.delete) mempty
+held = folds (barr $ barr $ \b -> b $> Set.insert <?> Set.delete) mempty

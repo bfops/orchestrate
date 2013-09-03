@@ -26,7 +26,7 @@ import Input
 import Types
 
 song :: Stream Id (Maybe (Maybe Velocity, Input), Tick) Chord
-song = updater songStep mempty
+song = folds songStep mempty
     where
         songStep = memory <&> (<>) <*> noteLogic
                >>> mapMaybe holdOff
@@ -59,9 +59,11 @@ test :: Test
 test = $(testGroupGenerator)
 
 prop_notes :: [(Velocity, Set Note)] -> Result
-prop_notes = streamTestEq song $ \notes -> do
+prop_notes = (\notes -> do
                         (v, chord) <- toList <$$> take 16 notes
                         [ ioPair (Just v) chord, ioPair Nothing chord ]
+             )
+         >>> streamTestEq song
     where
         -- input to expected output pairing for the stream
         ioPair v chord = ( (Just (v, Chord chord), 0)
@@ -69,9 +71,8 @@ prop_notes = streamTestEq song $ \notes -> do
                          )
 
 prop_harmony :: [(Velocity, ([Harmony], [Note]))] -> Result
-prop_harmony = streamTestEq (set <$> song)
-             $ preprocess
-           >>> \inputs -> do
+prop_harmony = preprocess
+           >>> (\inputs -> do
                     (v, (harmonies, notes)) <- inputs
                     let outNotes = set $ harmonize <$> harmonies <*> ((v,) <$> notes)
                         setNotes = (v,) <$> set notes
@@ -80,6 +81,8 @@ prop_harmony = streamTestEq (set <$> song)
                                , ((Nothing, Harmony harmonies), unheld outNotes $ setNotes)
                                , ((Nothing, Chord notes), off <$> setNotes)
                                ]
+               )
+           >>> streamTestEq (set <$> song)
     where
         reduceInput :: Ord a => [a] -> [a]
         reduceInput = take 16 >>> set >>> toList

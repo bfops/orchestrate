@@ -94,7 +94,7 @@ inRange l h v = let
 
 -- | Sums up the Justs since the last Nothing.
 timer :: Num a => Stream Id (Maybe a) (Maybe a)
-timer = updater (barr addJust) Nothing
+timer = folds (barr addJust) Nothing
   where
     addJust x y = liftA2 (+) x y <|> x
 
@@ -125,11 +125,11 @@ track = proc ((stateSwitch, dt), notes) -> do
     where
         recordUpdate = map2 (toggleOn (Just False) False) >>> barr mcond
         playUpdate = map2 (toggleOn (Just True) False) >>> barr mcond
-        toggleOn v = updater $ barr $ \x -> if' (x == v) not
+        toggleOn v = folds $ barr $ \x -> if' (x == v) not
 
 record :: Stream Id (Maybe Tick, Chord) RecordedData
 record = map2 timer
-     >>> updater updateRecorded mempty
+     >>> folds updateRecorded mempty
   where
       updateRecorded = proc ((t, notes), song) -> do
                 song' <- tryResetRecording -< (isJust t, song)
