@@ -1,28 +1,41 @@
+{-# OPTIONS -fno-warn-orphans #-}
 {-# LANGUAGE NoImplicitPrelude
            , TupleSections
+           , FlexibleInstances
+           , MultiParamTypeClasses
            , Arrows
+           , TemplateHaskell
            #-}
 -- | Monad-free logic components with obvious updating state.
 module Logic.Memory( memory
+                   , Logic.Memory.test
                    ) where
 
 import Summit.Control.Stream
 import Summit.Data.Id
-import Summit.Data.List as L (unzip, zip, last)
+import Summit.Data.List as L (unzip, zip, last, scanl1)
 import Summit.Data.Map as M (Map, alter, mapWithKey, assocs, fromList)
+import Summit.Data.Set (set, insert, (\\))
 import Summit.Impure (error)
 import Summit.Prelewd as P hiding ((!))
+import Summit.Subset.Num
+import Summit.Test
 
 import Control.Stream.Util
 import Data.Tuple
 import Data.Maybe (isJust)
 import Data.KVP (KVP (..), kvp)
-import Data.Vector as V (Vector, snoc, slice, length, (!))
+import Data.Vector as V (Vector, snoc, slice, length, (!), fromList)
+import Data.Traversable (mapAccumL)
+import Text.Show
 
 import Sound.MIDI.Monad.Types
 
 import Input
 import Types
+
+instance ResultEq a => ResultEq (Vector a) where
+  (==?) = (==?) `on` toList
 
 -- | Stream that produces the previous value it received.
 -- Iff Nothing was received, produce a default value.
@@ -157,3 +170,77 @@ play = map2 withPreviousTime
                      <&> toList
 
       newPlayNotes song t0 t = concatMap value $ inRange (kvp t0) (kvp t) song
+
+test :: Test
+test = $(testGroupGenerator)
+
+prop_record :: [(Positive Tick, Chord)] -> Result
+prop_record = map (map2 fromPos)
+          >>> mapAccumL ioPair (0, mempty)
+          >>> snd
+          >>> streamTestEq record
+  where
+    ioPair (t, recorded) (dt, chord) = let
+        t' = t + dt
+        recorded' = snoc recorded (KVP t' chord)
+     in ((t', recorded'), ((Just dt, chord), Id recorded'))
+
+keysum :: Num a => [(Positive a, b)] -> [KVP a b]
+keysum = transformFst (map fromPos >>> scanl1 (+)) >>> map (barr KVP)
+  where
+    transformFst f = unzip >>> map2 f >>> barr L.zip
+
+prop_play :: ([(Positive Tick, Chord)], [Positive Tick]) -> Result
+prop_play = (keysum >>> V.fromList) *** map fromPos
+        >>> ioPairs
+        >>> streamTest (set <$> play)
+  where
+    isSubsetOf a b = null (a \\ b)
+    ioPairs (recorded, queries) = snd $ mapAccumL (ioPair recorded) 0 queries
+    ioPair v t dt = let t' = t + dt
+                        expectedOutput = set
+                                       $ concatMap value
+                                       $ inRange (kvp t) (kvp t') v
+                        -- Button-holding logic can reduce the number of signals
+                        -- passed through, so we expected the output to be a
+                        -- subset of the expected output.
+                        expectation out = if runId out `isSubsetOf` expectedOutput
+                                          then succeeded
+                                          else failed
+                    in (t', ((Just dt, v), expectation))
+
+prop_inRange :: ([(Positive Integer, Integer)], (Integer, Integer)) -> Result
+prop_inRange = (keysum *** kvp *** kvp)
+           >>> \(v, (l, h)) -> inRange l h (V.fromList v)
+                           ==? filter ((> l) <&> (&&) <*> (<= h)) v
+
+toSortedVector :: Ord a => [a] -> Vector a
+toSortedVector = set >>> toList >>> V.fromList
+
+prop_bsearch_less :: (Integer, [Integer]) -> Result
+prop_bsearch_less = barr (:)
+                >>> toSortedVector
+                >>> \sortedInputs -> let l = sortedInputs ! 0
+                                     in liftBool (bsearch (l - 1) sortedInputs == -1)
+
+prop_bsearch_greater :: (Integer, [Integer]) -> Result
+prop_bsearch_greater = barr (:)
+                   >>> toSortedVector
+                   >>> \sortedInputs -> let lastIndex = V.length sortedInputs - 1
+                                            h = sortedInputs ! lastIndex
+                                        in liftBool $ bsearch (h + 1) sortedInputs == lastIndex
+
+data IndexedIncreasingList a = IndexedIncreasingList [a] Integer
+  deriving (Show)
+
+instance (Arbitrary a, Ord a) => Arbitrary (IndexedIncreasingList a) where
+  arbitrary = do l <- insert <$> arbitrary <*> arbitrary <&> toList
+                 i <- choose (0, P.length l - 1)
+                 return $ IndexedIncreasingList l i
+
+prop_bsearch_found :: IndexedIncreasingList Integer -> Result
+prop_bsearch_found = toTuple
+                 >>> V.fromList *** fromInteger
+                 >>> \(sortedInputs, i) -> liftBool $ bsearch (sortedInputs ! i) sortedInputs == i
+  where
+    toTuple (IndexedIncreasingList l i) = (l, i)
