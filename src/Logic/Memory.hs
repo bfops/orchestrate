@@ -2,31 +2,27 @@
            , TupleSections
            , Arrows
            #-}
+-- | Monad-free logic components with obvious updating state.
 module Logic.Memory( memory
                    ) where
 
-import Summit.Prelewd hiding ((!))
-
-import Summit.Impure (error)
-
 import Summit.Control.Stream
-import Control.Stream.Input
-import Data.Tuple
-import Data.Maybe (isJust)
-import Data.Vector as V (Vector, snoc, slice, length, (!))
 import Summit.Data.Id
-import Data.KVP (KVP (..), kvp)
 import Summit.Data.List as L (unzip, zip, last)
 import Summit.Data.Map as M (Map, alter, mapWithKey, assocs, fromList)
+import Summit.Impure (error)
+import Summit.Prelewd as P hiding ((!))
+
+import Control.Stream.Util
+import Data.Tuple
+import Data.Maybe (isJust)
+import Data.KVP (KVP (..), kvp)
+import Data.Vector as V (Vector, snoc, slice, length, (!))
 
 import Sound.MIDI.Monad.Types
 
 import Input
 import Types
-
--- | Stream that produces the previous value it received.
-previous :: a -> Stream Id a a
-previous = loop $ arr swap
 
 -- | Stream that produces the previous value it received.
 -- Iff Nothing was received, produce a default value.
@@ -94,9 +90,9 @@ inRange l h v = let
 
 -- | Sums up the Justs since the last Nothing.
 timer :: Num a => Stream Id (Maybe a) (Maybe a)
-timer = folds (barr addJust) Nothing
+timer = folds (barr timerFunc) Nothing
   where
-    addJust x y = liftA2 (+) x y <|> x
+    timerFunc current prev = (current <&> (+) <*> prev) <|> current
 
 -- | If the track does not exist, create it
 createTrack :: Track -> Memory -> Memory
@@ -119,9 +115,9 @@ memory = loop (barr memoryFunc) mempty <&> concat
 
 track :: Stream Id TrackUpdate Chord
 track = proc ((stateSwitch, dt), notes) -> do
-            (ps, rs) <- playUpdate &&& recordUpdate -< (stateSwitch, dt)
-            r <- record -< (rs, notes)
-            play -< (ps, r)
+            (playState, recordState) <- playUpdate &&& recordUpdate -< (stateSwitch, dt)
+            recorded <- record -< (recordState, notes)
+            play -< (playState, recorded)
     where
         recordUpdate = map2 (toggleOn (Just False) False) >>> barr mcond
         playUpdate = map2 (toggleOn (Just True) False) >>> barr mcond

@@ -6,13 +6,13 @@
 module Main.Input( inputs
                  ) where
 
-import Summit.Prelewd
-import Summit.Impure
-
 import Summit.Control.Stream
-import Control.Stream.Input
 import Summit.Data.Id
 import Summit.Data.Map
+import Summit.Impure
+import Summit.Prelewd
+
+import Control.Stream.Util
 import Data.Trie
 import Summit.Template.MemberTransformer
 
@@ -58,7 +58,7 @@ notes :: Stream MIDI () [(Maybe Velocity, Note)]
 notes = lift $ arr $ \_-> midiIn
 
 convertAll :: Stream Id [Either (Bool, Button) (Maybe Velocity, Note)] [(Maybe Velocity, Input)]
-convertAll = map (boolToVelocity >>> arr sequence2 >>> convert) >>> arr (mapMaybe id)
+convertAll = map (boolToVelocity <&> sequence2 >>> convert) <&> mapMaybe id
     where
         boolToVelocity = arr $ map2 $ map2 (`mcond` defaultVelocity)
 
@@ -67,9 +67,9 @@ convert = loop (barr convertFunc) (Context mapInput mapInput mempty) >>> bind ho
     where
         convertFunc (Nothing, e) cxt = (do
                                         (i, off) <- remove e $ offMap cxt
-                                        return $ ( Just (Nothing, i)
-                                                 , cxt { offMap = off }
-                                                 )
+                                        return ( Just (Nothing, i)
+                                               , cxt { offMap = off }
+                                               )
                                        ) <?> (Nothing, cxt)
         convertFunc (Just v, e) cxt = case trie e $ currentMap cxt of
                                         Nothing -> (Nothing, reset cxt)

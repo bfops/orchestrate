@@ -1,21 +1,22 @@
 {-# LANGUAGE NoImplicitPrelude
            #-}
 -- | Input-output conversion helper Streams
-module Control.Stream.Input( hold
-                           , holdOff
-                           , held
-                           ) where
-
-import Summit.Prelewd
-
-import Summit.Impure
+module Control.Stream.Util( hold
+                          , holdOff
+                          , held
+                          , previous
+                          ) where
 
 import Summit.Control.Stream
-import Data.Maybe (isNothing)
-import Summit.Data.Refcount
 import Summit.Data.Id
+import Summit.Impure
 import qualified Summit.Data.Map as Map
+import Summit.Prelewd
+import Summit.Data.Refcount
 import qualified Summit.Data.Set as Set
+
+import Data.Maybe (isNothing)
+import Data.Tuple (swap)
 
 -- | Refcount inputs and only send a release signal when they've all been released.
 holdOff :: Ord b => Stream Id (Maybe a, b) (Maybe (Maybe a, b))
@@ -42,3 +43,7 @@ hold = holdOff >>> bind (loop (barr holdFunc) mempty)
 -- | Keep track of held inputs. The `b` values don't matter.
 held :: Ord a => Stream Id (Maybe b, a) (Set.Set a)
 held = folds (barr $ barr $ \b -> b $> Set.insert <?> Set.delete) mempty
+
+-- | Stream that produces the previous value it received.
+previous :: a -> Stream Id a a
+previous = loop $ arr swap

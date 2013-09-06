@@ -1,94 +1,31 @@
 {-# LANGUAGE NoImplicitPrelude
-           , TupleSections
            , Arrows
-           , TemplateHaskell
            #-}
-module Logic ( song
-             , Logic.test
+module Logic ( logic
              ) where
 
+import Summit.Control.Stream
 import Summit.Prelewd
 
-import Summit.Test
-
-import Summit.Control.Stream
-import Control.Stream.Input
-import Data.Tuple
+import Control.Stream.Util
 import Sound.MIDI.Monad
-import Summit.Data.Id
-import Summit.Data.List (take)
-import Data.Multimap
-import Summit.Data.Set
 
 import Logic.Memory
+import Logic.Sequential
 
+import Config
 import Input
-import Types
 
-song :: Stream Id (Maybe (Maybe Velocity, Input), Tick) Chord
-song = folds songStep mempty
-    where
-        songStep = memory <&> (<>) <*> noteLogic
-               >>> mapMaybe holdOff
+logic :: Stream MIDI (Maybe (Maybe Velocity, Input), Tick) ()
+logic = lift $ proc (inpt, dt) -> do
+                userPlayedNotes <- seqLogic -< inpt
+                memData <- memory -< ((inpt, dt), userPlayedNotes)
+                toPlay <- mapMaybe holdOff -< userPlayedNotes <> memData
+                id -< outputNotes toPlay
+  where
+    outputNotes notes = traverse_ (barr sendMIDI) notes >> flush
 
-        noteLogic = arr (fst >>> fst)
-                >>> bind (barr $ \v i -> (v,) <$$> (Left <$$> fromChord i <|> Right <$$> fromHarmony i))
-                >>> map (concatMap inputToNotes)
-                >>> arr (<?> [])
-
-        rights = bind $ right >>> \m -> try insert m mempty
-
-        toNotes ((v, note), hs) = (set [Left note], (v, note))
-                                : (toList hs <&> \h -> (set [Left note, Right h], harmonize h (v, note)))
-
-        inputToNotes = proc (v, i) -> do
-                harmonies <- rights <$> held -< (v, i)
-                let notes = v <&> (,) <*> left i <&> (, harmonies) <&> toNotes
-                notesOn <&> (<>) <*> notesOff -< (notes, i)
-
-notesOn :: Stream Id (Maybe [(Set (Either Note Harmony), (Velocity, Note))], Either Note Harmony) Chord
-notesOn = barr (\m _-> snd <$$> m <?> []) <&> map (map2 Just)
-
-notesOff :: Stream Id (Maybe [(Set (Either Note Harmony), (Velocity, Note))], Either Note Harmony) Chord
-notesOff = loop (barr offFunc) emptyMulti
-    where
-        offFunc (Nothing, off) m = ((Nothing,) <$>) <.> (multiremove off m <?> ([], m))
-        offFunc (Just ons, _) m = ([], foldr (toList *** snd >>> barr multinsert) m ons)
-
-test :: Test
-test = $(testGroupGenerator)
-
-prop_notes :: [(Velocity, Set Note)] -> Result
-prop_notes = (\notes -> do
-                        (v, chord) <- toList <$$> take 16 notes
-                        [ ioPair (Just v) chord, ioPair Nothing chord ]
-             )
-         >>> streamTestEq song
-    where
-        -- input to expected output pairing for the stream
-        ioPair v chord = ( (Just (v, Chord chord), 0)
-                         , Id $ (v,) <$> chord
-                         )
-
-prop_harmony :: [(Velocity, ([Harmony], [Note]))] -> Result
-prop_harmony = preprocess
-           >>> (\inputs -> do
-                    (v, (harmonies, notes)) <- inputs
-                    let outNotes = set $ harmonize <$> harmonies <*> ((v,) <$> notes)
-                        setNotes = (v,) <$> set notes
-                    ioPair <$> [ ((Just v, Harmony harmonies), mempty)
-                                , ((Just v, Chord notes), (Just <.>) <$> setNotes <> outNotes)
-                               , ((Nothing, Harmony harmonies), unheld outNotes $ setNotes)
-                               , ((Nothing, Chord notes), off <$> setNotes)
-                               ]
-               )
-           >>> streamTestEq (set <$> song)
-    where
-        reduceInput :: Ord a => [a] -> [a]
-        reduceInput = take 16 >>> set >>> toList
-
-        preprocess l = (reduceInput *** reduceInput) <$$> take 16 l
-        ioPair = (Just >>> (, 0)) *** Id
-
-        off = map2 $ \_-> Nothing
-        unheld = (\\) `on` map off
+    sendMIDI :: Maybe Velocity -> Note -> MIDI ()
+    sendMIDI mv = mv
+              <&> startNote drumChannel 0
+              <?> stopNote  drumChannel 0

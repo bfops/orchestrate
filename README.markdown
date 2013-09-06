@@ -62,7 +62,7 @@ Coding is a language. You are expressing ideas, so they should be as clear, conc
  * Wrap to 120 characters
  * Functions ending with a single quote usually require a transformation function as one of their parameters
  * When indenting multi-lined bodies, align SOMETHING visually (e.g. operators)
-   or just use a multiple of four spaces (at least 8)
- * Indent a `where` keyword by 4 spaces, and the declarations within it by 8
+   or just use a multiple of 2 spaces (at least 4)
+ * Indent a `where` keyword by 2 spaces, and the declarations within it by 4
  * If a `where` clause has more than one line in it, the `where` keyword should be on a distinct line from any code
  * Do not have more than one embedded subscope (A `let` inside a `where` is acceptable, but to be used sparingly)

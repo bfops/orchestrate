@@ -5,11 +5,11 @@
 -- | Main module, entry point
 module Main (main) where
 
+import Summit.Control.Stream
+import Summit.IO
 import Summit.Prelewd
 
-import Summit.IO
-
-import Summit.Control.Stream
+import Control.Stream.Util
 import Data.Tuple
 
 import Wrappers.GLFW
@@ -23,8 +23,8 @@ import Main.Input
 import Config
 import Logic
 
-mstream :: (Functor m, Monad m) => m a -> Stream m r a
-mstream = lift . arr . \m _-> m
+midiStream :: IO a -> Stream MIDI r a
+midiStream m = lift $ arr $ \_-> ioMIDI $ \_-> m
 
 -- | Entry point
 main :: SystemIO ()
@@ -36,21 +36,22 @@ main = runIO $ runGLFW displayOpts (0, 0 :: Integer) title $ do
     where
         mainLoop = inputs <&> map Just <&> (Nothing:) -- Add an update with no inputs,
                                                       -- so we're updating at least once per iteration.
-               >>> map inputStep
-               >>> mstream (ioMIDI $ \_-> updateGraphics >> io (sleep 0.01))
+               >>> map (id &&& deltaT >>> logic)
+               >>> midiStream ioUpdates
 
-        inputStep = proc i -> do
-                        deltaT <- ticks >>> identify diff -< ()
-                        lift ((0,) <$$> song <&> sendNotes) -< (i, deltaT)
+        ioUpdates = updateGraphics
+                 >> io (sleep 0.01)
 
-        sendNotes notes = traverse_ sendNote notes >> flush
-        sendNote (t, (mv, n)) = (\v -> startNote drumChannel t v n) <$> mv
-                            <?> stopNote drumChannel t n
+deltaT :: Stream MIDI a Tick
+deltaT = ticks >>> identify delta
+  where
+    delta = proc t -> do
+              tPrev <- previous Nothing -< Just t
+              id -< (t -) <$> tPrev <?> 0
 
-        diff = loop (barr $ \t t0 -> ((t -) <$> t0 <?> 0, Just t)) Nothing
-
--- TODO: Investigate overflow scenarios
-ticks :: Stream MIDI () Tick
-ticks = mstream $ ioMIDI $ \_-> io (convert <$> getTime)
-    where
-        convert t = floor (t * fromIntegral bpm * 96 / 60 / fromIntegral granularity) * granularity
+    -- TODO: Investigate overflow scenarios
+    ticks :: Stream MIDI a Tick
+    ticks = midiStream $ io $ convert <$> getTime
+        where
+            convert t = floor (t * fromIntegral bpm * 96 / 60 / fromIntegral granularity)
+                      * granularity
