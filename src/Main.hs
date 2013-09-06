@@ -6,6 +6,7 @@
 module Main (main) where
 
 import Summit.Control.Stream
+import Summit.Data.Map
 import Summit.IO
 import Summit.Prelewd
 
@@ -20,8 +21,37 @@ import Sound.MIDI.Monad
 import Main.Graphics
 import Main.Input
 
-import Config
 import Logic
+
+windowSize :: Num a => (a, a)
+windowSize = (64, 64)
+
+-- | GLFW display options
+displayOpts :: DisplayOptions
+displayOpts = defaultDisplayOptions
+    { displayOptions_width = fst windowSize
+    , displayOptions_height = snd windowSize
+    , displayOptions_windowIsResizable = True
+    }
+
+-- | Title of the game window
+title :: Text
+title = "Soundflow"
+
+-- | Output MIDI destinations
+outMIDI :: [Text]
+outMIDI = ["128:0"]
+
+-- | Map MIDI sources to instruments
+inMIDI :: Map Text Instrument
+inMIDI = fromList []
+
+-- | Beats per minute
+bpm :: Integer
+bpm = 60
+
+granularity :: Tick
+granularity = 2
 
 midiStream :: IO a -> Stream MIDI r a
 midiStream m = lift $ arr $ \_-> ioMIDI $ \_-> m

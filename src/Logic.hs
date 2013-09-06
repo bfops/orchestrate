@@ -13,8 +13,10 @@ import Sound.MIDI.Monad
 import Logic.Memory
 import Logic.Sequential
 
-import Config
 import Input
+
+drumChannel :: Num a => a
+drumChannel = 9
 
 logic :: Stream MIDI (Maybe (Maybe Velocity, Input), Tick) ()
 logic = lift $ proc (inpt, dt) -> do
