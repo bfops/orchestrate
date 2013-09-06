@@ -1,14 +1,15 @@
--- | Establish a many-to-many function between two sets
+-- | Many-to-many mapping between two sets.
 {-# LANGUAGE NoImplicitPrelude
            , TupleSections
            #-}
 module Data.Bimap( Bimap
-                    , reflect
-                    , bilookup
-                    , binsert
-                    , bidelete
-                    , biremove
-                    ) where
+                 , reflect
+                 , reflect'
+                 , bilookup
+                 , binsert
+                 , bidelete
+                 , biremove
+                 ) where
 
 import Summit.Prelewd
 
@@ -36,6 +37,10 @@ instance (Ord a, Ord b) => Monoid (Bimap a b) where
 -- O(1)
 reflect :: Bimap a b -> Bimap b a
 reflect = Bimap <$> as <*> bs
+
+-- | Perform a function on a Bimap reflection.
+reflect' :: (Bimap b a -> Bimap b a) -> Bimap a b -> Bimap a b
+reflect' f = reflect >>> f >>> reflect
 
 -- | Lookup in a Bimap.
 -- O(lg(a)), where `a` is the number of distinct as.
