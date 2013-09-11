@@ -2,15 +2,15 @@
            #-}
 -- | Program-specific input types
 module Input ( Input (..)
+             , TrackCommand (..)
              , UnifiedEvent
              , Harmony
              , Track
              , InputMap
              , fromChord
              , fromHarmony
-             , fromRecord
-             , fromPlay
              , fromRemap
+             , fromTrack
              , harmonize
              ) where
 
@@ -38,9 +38,12 @@ type InputMap = Trie UnifiedEvent Input
 
 data Input = Chord [Note]
            | Harmony [Harmony]
-           | Record Track
-           | Play Track
            | Remap InputMap
+           | Track TrackCommand Track
+    deriving (Show, Eq, Ord)
+
+data TrackCommand = Record
+                  | Play
     deriving (Show, Eq, Ord)
 
 fromChord :: Input -> Maybe [Note]
@@ -51,13 +54,9 @@ fromHarmony :: Input -> Maybe [Harmony]
 fromHarmony (Harmony hs) = Just hs
 fromHarmony _ = Nothing
 
-fromRecord :: Input -> Maybe Track
-fromRecord (Record t) = Just t
-fromRecord _ = Nothing
-
-fromPlay :: Input -> Maybe Track
-fromPlay (Play t) = Just t
-fromPlay _ = Nothing
+fromTrack :: Input -> Maybe (TrackCommand, Track)
+fromTrack (Track c t) = Just (c, t)
+fromTrack _ = Nothing
 
 fromRemap :: Input -> Maybe InputMap
 fromRemap (Remap r) = Just r

@@ -45,10 +45,12 @@ mapInput = fromMap (map Left <.> fromList (harmonyButtons <> recordButtons))
                        $ [(numChar i, [(Nothing, (Nothing, Right $ fromInteger i))]) | i <- [1..9]]
                       <> [('[', [(Just 32, (Just Percussion, Left 42))])]
 
+        tracks = [1..9]
+
         recordButtons = map (map2 $ map (KeyButton . CharKey))
-                      $ do i <- [1..9]
+                      $ do i <- tracks
                            let c = numChar i
-                           [(['Z', c], Record i), (['X', c], Play i)]
+                           [(['Z', c], Track Record i), (['X', c], Track Play i)]
 
 numChar :: Integer -> Char
 numChar i = "0123456789" ! i

@@ -6,7 +6,7 @@
            , Arrows
            , TemplateHaskell
            #-}
--- | Monad-free logic components with obvious updating state.
+-- | Logic components with obvious updating state.
 module Logic.Memory( memory
                    , Logic.Memory.test
                    ) where
@@ -65,7 +65,7 @@ unzipMap :: Ord k => Map k (a, b) -> (Map k a, Map k b)
 unzipMap m = let (ks, vs) = unzip $ assocs m
              in (L.zip ks >>> M.fromList) *** (L.zip ks >>> M.fromList) $ unzip vs
 
-type TrackUpdate = ((Maybe Bool, Tick), Chord)
+type TrackUpdate = ((Maybe TrackCommand, Tick), Chord)
 type Memory = Map Track (Stream Id TrackUpdate Chord)
 -- N.B. Vector is indexed by Int; can only hold 2^32 elements.
 type RecordedData = Vector (KVP Tick Chord)
@@ -112,17 +112,17 @@ createTrack :: Track -> Memory -> Memory
 createTrack = alter (<|> Just track)
 
 memory :: Stream Id ((Maybe (Maybe Velocity, Input), Tick), Chord) Chord
-memory = loop (barr memoryFunc) mempty <&> concat
+memory = loop (barr updateMemory) mempty <&> concat
     where
         whichTrack mi = do
                         (v, i) <- mi
                         _ <- v
-                        ((True,) <$> fromPlay i) <|> ((False,) <$> fromRecord i)
+                        fromTrack i
 
-        memoryFunc ((i, dt), notes) = let toggleTrack = whichTrack i
-                                      in try createTrack (snd <$> toggleTrack)
-                                     >>> mapWithKey (\k s -> runId $ s $< ((perTrackInput k toggleTrack, dt), notes))
-                                     >>> unzipMap
+        updateMemory ((i, dt), notes) = let toggleTrack = whichTrack i
+                                        in try createTrack (snd <$> toggleTrack)
+                                       >>> mapWithKey (\k s -> runId $ s $< ((perTrackInput k toggleTrack, dt), notes))
+                                       >>> unzipMap
 
         perTrackInput k = filter (snd >>> (== k)) >>> map fst
 
@@ -132,8 +132,8 @@ track = proc ((stateSwitch, dt), notes) -> do
             recorded <- record -< (recordState, notes)
             play -< (playState, recorded)
     where
-        recordUpdate = map2 (toggleOn (Just False) False) >>> barr mcond
-        playUpdate = map2 (toggleOn (Just True) False) >>> barr mcond
+        recordUpdate = map2 (toggleOn (Just Record) False) >>> barr mcond
+        playUpdate = map2 (toggleOn (Just Play) False) >>> barr mcond
         toggleOn v = folds $ barr $ \x -> if' (x == v) not
 
 record :: Stream Id (Maybe Tick, Chord) RecordedData
