@@ -2,12 +2,15 @@
 {-# LANGUAGE NoImplicitPrelude
            , TupleSections
            , FlexibleInstances
+           , FlexibleContexts
            , MultiParamTypeClasses
            , Arrows
            , TemplateHaskell
            #-}
 -- | Logic components with obvious updating state.
 module Logic.Memory( memory
+                   , unzipMap
+                   , RecordedData
                    , Logic.Memory.test
                    ) where
 
@@ -29,7 +32,7 @@ import Data.Vector as V (Vector, snoc, slice, length, (!), fromList)
 import Data.Traversable (mapAccumL)
 import Text.Show
 
-import Sound.MIDI.Monad.Types
+import Sound.MIDI.Monad
 
 import Input
 import Types
@@ -65,8 +68,13 @@ unzipMap :: Ord k => Map k (a, b) -> (Map k a, Map k b)
 unzipMap m = let (ks, vs) = unzip $ assocs m
              in (L.zip ks >>> M.fromList) *** (L.zip ks >>> M.fromList) $ unzip vs
 
-type TrackUpdate = ((Maybe TrackCommand, Tick), Chord)
-type Memory = Map Track (Stream Id TrackUpdate Chord)
+-- This follows a more general form: f (g a b) -> g (f a) (f b)
+unzipMapM :: (Functor m, Sequential (Map k) m (a, b), Ord k)
+          => Map k (m (a, b)) -> m (Map k a, Map k b)
+unzipMapM m = unzipMap <$> sequence m
+
+type TrackUpdate = ((Maybe (TrackCommand RecordedData), Tick), Chord)
+type Memory = Map Track (Stream Id TrackUpdate (Chord, RecordedData))
 -- N.B. Vector is indexed by Int; can only hold 2^32 elements.
 type RecordedData = Vector (KVP Tick Chord)
 
@@ -111,38 +119,46 @@ timer = folds (barr timerFunc) Nothing
 createTrack :: Track -> Memory -> Memory
 createTrack = alter (<|> Just track)
 
-memory :: Stream Id ((Maybe (Maybe Velocity, Input), Tick), Chord) Chord
-memory = loop (barr updateMemory) mempty <&> concat
+type PossibleInput = Maybe (Maybe Velocity, (Track, TrackCommand RecordedData))
+
+memory :: Stream Id ((PossibleInput, Tick), Chord) (Map Track (Chord, RecordedData))
+memory = loop (lift $ barr updateMemory) mempty
     where
+        whichTrack :: PossibleInput -> Maybe (Track, TrackCommand RecordedData)
         whichTrack mi = do
                         (v, i) <- mi
-                        _ <- v
-                        fromTrack i
+                        v $> i
 
+        updateMemory :: ((PossibleInput, Tick), Chord) -> Memory -> Id (Map Track (Chord, RecordedData), Memory)
         updateMemory ((i, dt), notes) = let toggleTrack = whichTrack i
-                                        in try createTrack (snd <$> toggleTrack)
-                                       >>> mapWithKey (\k s -> runId $ s $< ((perTrackInput k toggleTrack, dt), notes))
-                                       >>> unzipMap
+                                        in try createTrack (fst <$> toggleTrack)
+                                       >>> mapWithKey (\k s -> s $< ((perTrackInput k toggleTrack, dt), notes))
+                                       >>> sequence
+                                       >>> map unzipMap
 
-        perTrackInput k = filter (snd >>> (== k)) >>> map fst
+        perTrackInput :: Track -> Maybe (Track, TrackCommand RecordedData) -> Maybe (TrackCommand RecordedData)
+        perTrackInput trck = filter (fst >>> (== trck)) >>> map snd
 
-track :: Stream Id TrackUpdate Chord
+track :: Stream Id TrackUpdate (Chord, RecordedData)
 track = proc ((stateSwitch, dt), notes) -> do
-            (playState, recordState) <- playUpdate &&& recordUpdate -< (stateSwitch, dt)
-            recorded <- record -< (recordState, notes)
-            play -< (playState, recorded)
+            (playState, recordState) <- identify (playUpdate &&& recordUpdate)
+                                     -< (stateSwitch, dt)
+            let tryLoad = stateSwitch >>= fromLoad
+            recorded <- record -< ((recordState, notes), tryLoad)
+            toPlay <- identify play -< (playState, recorded)
+            id -< (toPlay, recorded)
     where
         recordUpdate = map2 (toggleOn (Just Record) False) >>> barr mcond
         playUpdate = map2 (toggleOn (Just Play) False) >>> barr mcond
         toggleOn v = folds $ barr $ \x -> if' (x == v) not
 
-record :: Stream Id (Maybe Tick, Chord) RecordedData
-record = map2 timer
+record :: Stream Id ((Maybe Tick, Chord), Maybe RecordedData) RecordedData
+record = map2 (map2 timer)
      >>> folds updateRecorded mempty
   where
-      updateRecorded = proc ((t, notes), song) -> do
-                song' <- tryResetRecording -< (isJust t, song)
-                id -< try (append notes) t song'
+      updateRecorded = proc (((t, notes), loaded), prev) -> do
+                next <- tryResetRecording -< (isJust t, loaded <?> prev)
+                id -< try (append notes) t next
 
       tryResetRecording = medge (>=) False
 
@@ -183,7 +199,7 @@ prop_record = map (map2 fromPos)
     ioPair (t, recorded) (dt, chord) = let
         t' = t + dt
         recorded' = snoc recorded (KVP t' chord)
-     in ((t', recorded'), ((Just dt, chord), Id recorded'))
+     in ((t', recorded'), (((Just dt, chord), Nothing), Id recorded'))
 
 keysum :: Num a => [(Positive a, b)] -> [KVP a b]
 keysum = transformFst (map fromPos >>> scanl1 (+)) >>> map (barr KVP)

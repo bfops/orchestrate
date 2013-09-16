@@ -1,4 +1,8 @@
 {-# LANGUAGE NoImplicitPrelude
+           , DeriveFunctor
+           , DeriveFoldable
+           , FlexibleInstances
+           , MultiParamTypeClasses
            #-}
 -- | Program-specific input types
 module Input ( Input (..)
@@ -11,16 +15,17 @@ module Input ( Input (..)
              , fromHarmony
              , fromRemap
              , fromTrack
+             , fromLoad
              , harmonize
              ) where
 
 import Summit.Prelewd
-import Data.Trie
 
 import Data.Int
-import Sound.MIDI.Monad.Types
+import Data.Trie
+import Text.Show (Show)
 
-import Text.Show
+import Sound.MIDI.Monad.Types
 
 import Wrappers.Events
 
@@ -39,12 +44,22 @@ type InputMap = Trie UnifiedEvent Input
 data Input = Chord [Note]
            | Harmony [Harmony]
            | Remap InputMap
-           | Track TrackCommand Track
+           | Track (TrackCommand ()) Track
     deriving (Show, Eq, Ord)
 
-data TrackCommand = Record
-                  | Play
-    deriving (Show, Eq, Ord)
+data TrackCommand a = Record
+                    | Play
+                    | Save
+                    | Load a
+    deriving (Show, Eq, Ord, Functor, Foldable)
+
+instance Applicative f => Sequential TrackCommand f a where
+  sequence (Load f) = Load <$> f
+  sequence Record = pure Record
+  sequence Play = pure Play
+  sequence Save = pure Save
+
+instance Applicative f => Traversable TrackCommand f a b
 
 fromChord :: Input -> Maybe [Note]
 fromChord (Chord s) = Just s
@@ -54,13 +69,17 @@ fromHarmony :: Input -> Maybe [Harmony]
 fromHarmony (Harmony hs) = Just hs
 fromHarmony _ = Nothing
 
-fromTrack :: Input -> Maybe (TrackCommand, Track)
+fromTrack :: Input -> Maybe (TrackCommand (), Track)
 fromTrack (Track c t) = Just (c, t)
 fromTrack _ = Nothing
 
 fromRemap :: Input -> Maybe InputMap
 fromRemap (Remap r) = Just r
 fromRemap _ = Nothing
+
+fromLoad :: TrackCommand a -> Maybe a
+fromLoad (Load a) = Just a
+fromLoad _ = Nothing
 
 -- | Apply a harmony to a note.
 harmonize :: Harmony -> (Velocity, Note) -> (Velocity, Note)

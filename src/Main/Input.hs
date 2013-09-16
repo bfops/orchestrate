@@ -37,7 +37,11 @@ defaultVelocity = 64
 
 -- | What controls what?
 mapInput :: InputMap
-mapInput = fromMap (map Left <.> fromList (harmonyButtons <> recordButtons))
+mapInput = fromMap (map Left <.> fromList ( harmonyButtons
+                                         <> recordButtons
+                                         <> saveButtons
+                                         <> loadButtons
+                                          ))
         <> pianoMap
         <> drumMIDI
     where
@@ -51,6 +55,12 @@ mapInput = fromMap (map Left <.> fromList (harmonyButtons <> recordButtons))
                       $ do i <- tracks
                            let c = numChar i
                            [(['Z', c], Track Record i), (['X', c], Track Play i)]
+
+        saveButtons = tracks
+                  <&> \i -> (KeyButton . CharKey <$> ['C', numChar i], Track Save i)
+
+        loadButtons = tracks
+                  <&> \i -> (KeyButton . CharKey <$> ['V', numChar i], Track (Load ()) i)
 
 numChar :: Integer -> Char
 numChar i = "0123456789" ! i
