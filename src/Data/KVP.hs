@@ -9,12 +9,13 @@ import Summit.Prelewd
 import Summit.Impure
 import Summit.Test
 
-import Text.Show
+import Text.Show (Show)
+import Text.Read (Read)
 
 data KVP k v = KVP { key    :: k
                    , value  :: v
                    }
-    deriving (Show)
+    deriving (Show, Read)
 
 instance Eq k => Eq (KVP k v) where
     (==) = (==) `on` key
