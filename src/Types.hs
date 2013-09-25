@@ -6,7 +6,7 @@ module Types( Chord
 
 import Summit.Prelewd
 
-import Sound.MIDI.Monad
+import Sound.MIDI
 
 -- | A group of simultaneous on/off signals
 type Chord = [(Maybe Velocity, Note)]

@@ -6,20 +6,22 @@
 module Main.Input( inputs
                  ) where
 
-import Summit.Control.Stream
+import Summit.Control.Stream as S
 import Summit.Data.Id
 import Summit.Data.Map
 import Summit.Impure
+import Summit.IO
 import Summit.Prelewd
+import Summit.Template.MemberTransformer
 
+import Control.Eff as E
 import Control.Stream.Util
 import Data.Char (Char)
 import Data.Trie
-import Summit.Template.MemberTransformer
 
 import Wrappers.Events
 
-import Sound.MIDI.Monad
+import Sound.MIDI
 
 import Main.Graphics
 
@@ -116,22 +118,22 @@ data Context = Context
 
 $(memberTransformers ''Context)
 
-inputs :: Stream MIDI () [(Maybe Velocity, Input)]
+inputs :: MIDI env => Stream (Eff env) () [(Maybe Velocity, Input)]
 inputs = (Left <$$> buttons) <&> (<>) <*> (Right <$$> notes) >>> identify convertAll
 
-buttons :: Stream MIDI () [(Bool, Button)]
-buttons = mswitch (ioMIDI . \i _-> i)
+buttons :: MemberL IO env => Stream (Eff env) () [(Bool, Button)]
+buttons = mswitch E.lift
         $ events
-      >>> lift (arr $ traverse toButton)
-      >>> identify (arr concat)
+      >>> S.lift (arr $ traverse toButton)
+      <&> concat
     where
         toButton CloseEvent = empty
         toButton (ResizeEvent s) = resize s $> []
         toButton (ButtonEvent b s) = return [(s == Press, b)]
         toButton _ = return []
 
-notes :: Stream MIDI () [(Maybe Velocity, Note)]
-notes = lift $ arr $ \_-> midiIn
+notes :: MIDI env => Stream (Eff env) () [(Maybe Velocity, Note)]
+notes = S.lift $ arr $ \_-> midiIn
 
 convertAll :: Stream Id [Either (Bool, Button) (Maybe Velocity, Note)] [(Maybe Velocity, Input)]
 convertAll = map (boolToVelocity <&> sequence2 >>> convert) <&> mapMaybe id

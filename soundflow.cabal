@@ -17,7 +17,8 @@ Executable Soundflow
                     Summit == 0.15,
                     Game-Wrappers == 0.2,
                     QuickCheck >= 2,
-                    midi-monad == 0.5,
+                    imidi >= 0.6,
+                    extensible-effects >= 0.1,
                     vector,
                     base
 
@@ -32,7 +33,7 @@ test-suite Tests
                     Summit,
                     HUnit,
                     Game-Wrappers,
-                    midi-monad,
+                    imidi,
                     vector,
                     test-framework-quickcheck2,
                     test-framework-hunit,

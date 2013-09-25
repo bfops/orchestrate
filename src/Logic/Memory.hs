@@ -32,7 +32,7 @@ import Data.Vector as V (Vector, snoc, slice, length, (!), fromList)
 import Data.Traversable (mapAccumL)
 import Text.Show
 
-import Sound.MIDI.Monad
+import Sound.MIDI
 
 import Input
 import Types

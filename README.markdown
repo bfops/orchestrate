@@ -1,4 +1,4 @@
-# What is it
+# What it is
 
 Soundflow is designed to simplify the process of translating music from brain to computer.
 Rather than equating a keypress (or several) with a single note, a button can also add harmonies,
@@ -15,7 +15,8 @@ You will need:
  * cabal
  * Summit (https://github.com/RobotGymnast/Summit)
  * Game-Wrappers (https://github.com/RobotGymnast/Game-Wrappers)
- * midi-monad (https://github.com/RobotGymnast/midi-monad
+ * imidi (https://github.com/RobotGymnast/midi-monad)
+ * extensible-effects
 
 You can set up the build environment by running
 

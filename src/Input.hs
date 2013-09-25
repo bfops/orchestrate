@@ -25,7 +25,7 @@ import Data.Int
 import Data.Trie
 import Text.Show (Show)
 
-import Sound.MIDI.Monad.Types
+import Sound.MIDI.Types
 
 import Wrappers.Events
 

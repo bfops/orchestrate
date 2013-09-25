@@ -5,18 +5,19 @@
 -- | Main module, entry point
 module Main (main) where
 
-import Summit.Control.Stream
+import Summit.Control.Stream as S
 import Summit.Data.Map
 import Summit.IO
 import Summit.Prelewd
 
+import Control.Eff as E
 import Control.Stream.Util
 import Data.Tuple
 
 import Wrappers.GLFW
 import Wrappers.Events
 
-import Sound.MIDI.Monad
+import Sound.MIDI
 
 import Main.Graphics
 import Main.Input
@@ -53,17 +54,23 @@ bpm = 60
 granularity :: Tick
 granularity = 2
 
-midiStream :: IO a -> Stream MIDI r a
-midiStream m = lift $ arr $ \_-> ioMIDI $ \_-> m
+midiStream :: MIDI env => IO a -> Stream (Eff env) r a
+midiStream m = S.lift $ arr $ \_-> E.lift m
 
 -- | Entry point
 main :: SystemIO ()
 main = runIO $ runGLFW displayOpts (0, 0 :: Integer) title $ do
         initOpenGL
         initEvents
-        runMIDI title outMIDI inMIDI $ tempo (div 60000000 bpm)
-                                    >> iterateM_ (map snd . ($< ())) mainLoop
+        void
+          $ runMIDI title outMIDI inMIDI
+          $ \midiState -> void
+                        $ runLift
+                        $ runState midiState
+                        $ tempo (div 60000000 bpm)
+                       >> iterateM_ (map snd . ($< ())) mainLoop
     where
+        mainLoop :: MIDI env => Stream (Eff env) () ()
         mainLoop = inputs <&> map Just <&> (Nothing:) -- Add an update with no inputs,
                                                       -- so we're updating at least once per iteration.
                >>> map (id &&& deltaT >>> logic)
@@ -72,7 +79,7 @@ main = runIO $ runGLFW displayOpts (0, 0 :: Integer) title $ do
         ioUpdates = updateGraphics
                  >> io (sleep 0.01)
 
-deltaT :: Stream MIDI a Tick
+deltaT :: MIDI env => Stream (Eff env) a Tick
 deltaT = ticks >>> identify delta
   where
     delta = proc t -> do
@@ -80,7 +87,7 @@ deltaT = ticks >>> identify delta
               id -< (t -) <$> tPrev <?> 0
 
     -- TODO: Investigate overflow scenarios
-    ticks :: Stream MIDI a Tick
+    ticks :: MIDI env => Stream (Eff env) a Tick
     ticks = midiStream $ io $ convert <$> getTime
         where
             convert t = floor (t * fromIntegral bpm * 96 / 60 / fromIntegral granularity)

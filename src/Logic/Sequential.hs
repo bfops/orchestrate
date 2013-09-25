@@ -20,7 +20,7 @@ import Control.Stream.Util
 import Data.Multimap
 import Data.Tuple
 
-import Sound.MIDI.Monad.Types
+import Sound.MIDI.Types
 
 import Input
 import Types
