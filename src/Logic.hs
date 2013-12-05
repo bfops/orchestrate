@@ -9,7 +9,8 @@ import Summit.Data.Map (lookup)
 import Summit.IO (writeFile, readFile)
 import Summit.Prelewd
 
-import Control.Eff as E
+import Control.Eff
+import Control.Eff.Lift as E
 import Text.Read (read)
 import Text.Show (show)
 

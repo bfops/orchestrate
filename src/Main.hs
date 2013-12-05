@@ -10,7 +10,9 @@ import Summit.Data.Map
 import Summit.IO
 import Summit.Prelewd
 
-import Control.Eff as E
+import Control.Eff
+import Control.Eff.Lift as E
+import Control.Eff.State.Strict
 import Control.Stream.Util
 import Data.Tuple
 

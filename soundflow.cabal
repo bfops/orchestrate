@@ -1,8 +1,8 @@
 Name:                Soundflow
-Version:             0.2
+Version:             0.2.1
 Description:         Flexible MIDI music developer
 Category:            Music
-License:             BSD3
+License:             MIT
 Author:              Ben Foppa
 Maintainer:          benjamin.foppa@gmail.com
 Build-Type:          Simple
@@ -13,12 +13,12 @@ Executable Soundflow
     Main-is:        Main.hs
     GHC-Options:    -Wall -Werror -threaded -rtsopts=all
 
-    Build-Depends: 
+    Build-Depends:
                     Summit == 0.15,
                     Game-Wrappers == 0.2,
+                    imidi == 0.7,
+                    extensible-effects == 1.2.*,
                     QuickCheck >= 2,
-                    imidi >= 0.6,
-                    extensible-effects >= 0.1,
                     vector,
                     base
 
@@ -29,11 +29,11 @@ test-suite Tests
     GHC-Options:    -Wall -Werror
 
     build-depends:
-                    QuickCheck >= 2,
                     Summit,
-                    HUnit,
                     Game-Wrappers,
                     imidi,
+                    HUnit,
+                    QuickCheck >= 2,
                     vector,
                     test-framework-quickcheck2,
                     test-framework-hunit,

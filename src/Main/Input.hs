@@ -14,7 +14,8 @@ import Summit.IO
 import Summit.Prelewd
 import Summit.Template.MemberTransformer
 
-import Control.Eff as E
+import Control.Eff
+import Control.Eff.Lift as E
 import Control.Stream.Util
 import Data.Char (Char)
 import Data.Trie
@@ -121,7 +122,7 @@ $(memberTransformers ''Context)
 inputs :: MIDI env => Stream (Eff env) () [(Maybe Velocity, Input)]
 inputs = (Left <$$> buttons) <&> (<>) <*> (Right <$$> notes) >>> identify convertAll
 
-buttons :: MemberL IO env => Stream (Eff env) () [(Bool, Button)]
+buttons :: SetMember Lift (Lift IO) env => Stream (Eff env) () [(Bool, Button)]
 buttons = mswitch E.lift
         $ events
       >>> S.lift (arr $ traverse toButton)

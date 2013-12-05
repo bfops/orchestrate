@@ -1,0 +1,6 @@
+Perform input transformations 
+
+e.g.
+-Force input to a certain key
+-Match a certain rhythm (time/beat granularity accomplishes this somewhat)
+-Match pitch of recorded data
