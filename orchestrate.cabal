@@ -1,4 +1,4 @@
-Name:                Soundflow
+Name:                orchestrate
 Version:             0.2.2
 Description:         Powerful, flexible music creation
 Category:            Music
@@ -8,7 +8,7 @@ Maintainer:          benjamin.foppa@gmail.com
 Build-Type:          Simple
 Cabal-Version:       >= 1.9.2
 
-executable Soundflow
+executable orchestrate
     hs-source-dirs: src
     Main-is:        Main.hs
     GHC-Options:    -Wall -Werror -threaded -rtsopts=all

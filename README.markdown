@@ -1,4 +1,4 @@
-Soundflow is a highly under-construction music creation software,
+orchestrate is a highly under-construction music creation software,
 with UX design decisions made toward ideals of flexibility and power,
 at the potential cost of having a sharp learning curve.
 
