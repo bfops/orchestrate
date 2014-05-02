@@ -1,13 +1,10 @@
-{-# LANGUAGE NoImplicitPrelude
-           #-}
 module Main.Graphics ( initOpenGL
                      , resize
                      , updateGraphics
                      ) where
 
-import Summit.Prelewd
-
-import Summit.IO
+import Prelude ()
+import BasicPrelude
 
 import Wrappers.Events
 import Wrappers.GLFW
@@ -15,7 +12,7 @@ import Wrappers.OpenGL hiding (position)
 
 -- | Initialize the OpenGL context
 initOpenGL :: IO ()
-initOpenGL = io $ do
+initOpenGL = do
         shadeModel $= Smooth
         clearDepth $= 1
         depthFunc $= Just Less
@@ -23,7 +20,7 @@ initOpenGL = io $ do
 
 -- | Resize OpenGL view
 resize :: Size -> IO ()
-resize s@(Size w h) = io $ do
+resize s@(Size w h) = do
         viewport $= (Position 0 0, s)
     
         matrixMode $= Projection
@@ -36,18 +33,18 @@ resize s@(Size w h) = io $ do
         (//) = (/) `on` realToFrac
 
 -- | One iteration of graphics
-updateGraphics :: IO ()
-updateGraphics = drawFrame >> io swapBuffers
+updateGraphics :: Window -> IO ()
+updateGraphics wnd = drawFrame >> swapBuffers wnd
 
 -- | Draw one frame of the game state
 drawFrame :: IO ()
 drawFrame = do
         -- Clear the screen
-        io $ clear [ ColorBuffer, DepthBuffer ]
+        clear [ ColorBuffer, DepthBuffer ]
         -- Reset the view
-        io loadIdentity
+        loadIdentity
 
         -- draw here
         
         -- Write it all to the buffer
-        io flush
+        flush

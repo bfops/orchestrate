@@ -1,96 +1,87 @@
-{-# LANGUAGE NoImplicitPrelude
-           , TupleSections
-           , Arrows
-           #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE FlexibleContexts #-}
 -- | Main module, entry point
 module Main (main) where
 
-import Summit.Control.Stream as S
-import Summit.Data.Map
-import Summit.IO
-import Summit.Prelewd
+import Prelude ()
+import BasicPrelude as Base
 
+import Control.Concurrent (threadDelay)
 import Control.Eff
-import Control.Eff.Lift as E
+import Control.Eff.Lift as Eff
 import Control.Eff.State.Strict
-import Control.Stream.Util
-import Data.Tuple
-
+import Data.Conduit
+import Data.Conduit.List as Conduit
+import Data.HashMap.Strict (fromList)
+import Sound.MIDI
 import Wrappers.GLFW
 import Wrappers.Events
-
-import Sound.MIDI
 
 import Main.Graphics
 import Main.Input
 
+import Input
 import Logic
+
+drumChannel :: Num a => a
+drumChannel = 9
 
 windowSize :: Num a => (a, a)
 windowSize = (64, 64)
 
--- | GLFW display options
-displayOpts :: DisplayOptions
-displayOpts = defaultDisplayOptions
-    { displayOptions_width = fst windowSize
-    , displayOptions_height = snd windowSize
-    , displayOptions_windowIsResizable = True
-    }
-
 -- | Title of the game window
-title :: Text
+title :: String
 title = "Soundflow"
 
 -- | Output MIDI destinations
-outMIDI :: [Text]
+outMIDI :: [String]
 outMIDI = ["128:0"]
 
 -- | Map MIDI sources to instruments
-inMIDI :: Map Text Instrument
+inMIDI :: HashMap String Instrument
 inMIDI = fromList []
 
--- | Beats per minute
-bpm :: Integer
-bpm = 60
-
-granularity :: Tick
-granularity = 2
-
-midiStream :: MIDI env => IO a -> Stream (Eff env) r a
-midiStream m = S.lift $ arr $ \_-> E.lift m
-
 -- | Entry point
-main :: SystemIO ()
-main = runIO $ runGLFW displayOpts (0, 0 :: Integer) title $ do
-        initOpenGL
-        initEvents
+main :: IO ()
+main = do
+    putStrLn $ fromString "initializing GLFW"
+    runGLFW title Nothing (0, 0 :: Integer) windowSize
+     $ \wnd -> do
+        putStrLn $ fromString "GLFW initialized"
+        putStrLn $ fromString "initializing events"
+        initEvents wnd
+        putStrLn $ fromString "events initialized"
+        putStrLn $ fromString "initializing MIDI"
         void
           $ runMIDI title outMIDI inMIDI
           $ \midiState -> void
                         $ runLift
                         $ runState midiState
-                        $ tempo (div 60000000 bpm)
-                       >> iterateM_ (map snd . ($< ())) mainLoop
+                        $ do
+                            putStrLn $ fromString "MIDI initialized"
+                            tempo (div 60000000 bpm)
+                            mainLoop wnd inputs
+                            putStrLn $ fromString "done MIDI"
+        putStrLn $ fromString "closing"
     where
-        mainLoop :: MIDI env => Stream (Eff env) () ()
-        mainLoop = inputs <&> map Just <&> (Nothing:) -- Add an update with no inputs,
-                                                      -- so we're updating at least once per iteration.
-               >>> map (id &&& deltaT >>> logic)
-               >>> midiStream ioUpdates
+        mainLoop ::
+            (Functor (Eff env), Monad (Eff env), MIDI env) =>
+            Window ->
+            Source (Eff env) Input ->
+            Eff env ()
+        mainLoop wnd inputSource
+            =  inputSource
+            $= Conduit.mapM (\x -> x <$ Eff.lift (putStrLn $ fromString ("input to logic ") <> show x))
+            $= logic
+            $= Conduit.mapM (\x -> x <$ Eff.lift (putStrLn $ fromString ("output from logic ") <> show x))
+            $$ awaitForever (ioUpdates wnd)
 
-        ioUpdates = updateGraphics
-                 >> io (sleep 0.01)
+        ioUpdates wnd note = Base.lift $ do
+            sendMIDI note
+            liftIO $ updateGraphics wnd
+            liftIO $ threadDelay 10000
+            flush
 
-deltaT :: MIDI env => Stream (Eff env) a Tick
-deltaT = ticks >>> identify delta
-  where
-    delta = proc t -> do
-              tPrev <- previous Nothing -< Just t
-              id -< (t -) <$> tPrev <?> 0
-
-    -- TODO: Investigate overflow scenarios
-    ticks :: MIDI env => Stream (Eff env) a Tick
-    ticks = midiStream $ io $ convert <$> getTime
-        where
-            convert t = floor (t * fromIntegral bpm * 96 / 60 / fromIntegral granularity)
-                      * granularity
+        sendMIDI :: MIDI env => (Note, Maybe Velocity) -> Eff env ()
+        sendMIDI (note, Just v) = startNote drumChannel v note
+        sendMIDI (note, Nothing) = stopNote drumChannel   note

@@ -1,6 +1,6 @@
 Name:                Soundflow
-Version:             0.2.1
-Description:         Flexible MIDI music developer
+Version:             0.2.2
+Description:         Powerful, flexible music creation
 Category:            Music
 License:             MIT
 Author:              Ben Foppa
@@ -8,36 +8,58 @@ Maintainer:          benjamin.foppa@gmail.com
 Build-Type:          Simple
 Cabal-Version:       >= 1.9.2
 
-Executable Soundflow
-    hs-source-dirs: src/
+executable Soundflow
+    hs-source-dirs: src
     Main-is:        Main.hs
     GHC-Options:    -Wall -Werror -threaded -rtsopts=all
 
     Build-Depends:
-                    Summit == 0.15,
-                    Game-Wrappers == 0.2,
-                    imidi == 0.7,
-                    extensible-effects == 1.2.*,
-                    QuickCheck >= 2,
-                    vector,
+                    basic-prelude == 0.3.8.*,
+                    conduit == 1.1.1.*,
+                    containers == 0.5.*,
+                    extensible-effects == 1.4.*,
+                    game-wrappers == 0.4.*,
+                    imidi == 0.9.*,
+                    lens == 4.1.*,
+                    mtl == 2.1.*,
+                    QuickCheck,
+                    refcount == 0.0.*,
+                    StateVar,
+                    stm == 2.4.*,
+                    stm-conduit == 2.4.*,
+                    text,
+                    transformers == 0.3.0.*,
+                    unordered-containers == 0.2.4.*,
+                    vector == 0.10.9.*,
                     base
 
 test-suite Tests
     type:           exitcode-stdio-1.0
-    hs-source-dirs: src/
+    hs-source-dirs: test src
     main-is:        TestMain.hs
-    GHC-Options:    -Wall -Werror
+    GHC-Options:    -Wall -Werror -fno-warn-missing-signatures
 
     build-depends:
-                    Summit,
-                    Game-Wrappers,
+                    basic-prelude,
+                    conduit,
+                    containers,
+                    extensible-effects,
+                    game-wrappers,
+                    HUnit == 1.2.5.*,
                     imidi,
-                    HUnit,
+                    lens,
                     QuickCheck >= 2,
-                    vector,
-                    test-framework-quickcheck2,
-                    test-framework-hunit,
+                    QuickCheck < 2.7,
+                    refcount,
+                    stm,
+                    stm-conduit,
+                    test-framework-quickcheck2 == 0.3.0.*,
+                    test-framework-hunit == 0.3.0.*,
                     test-framework-th,
                     test-framework,
+                    text,
+                    transformers,
+                    unordered-containers,
+                    vector,
                     Cabal,
                     base

@@ -1,164 +1,197 @@
-{-# LANGUAGE NoImplicitPrelude
-           , TupleSections
-           , FlexibleContexts
-           , TemplateHaskell
-           #-}
-module Main.Input( inputs
-                 ) where
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ImpredicativeTypes #-}
+{-# LANGUAGE DoAndIfThenElse #-}
+module Main.Input ( inputs
+                  , bpm
+                  ) where
 
-import Summit.Control.Stream as S
-import Summit.Data.Id
-import Summit.Data.Map
-import Summit.Impure
-import Summit.IO
-import Summit.Prelewd
-import Summit.Template.MemberTransformer
+import Prelude ()
+import BasicPrelude hiding (map, mapM, mapM_, scanl, zip, zipWith, filter, sequence)
 
 import Control.Eff
-import Control.Eff.Lift as E
-import Control.Stream.Util
-import Data.Char (Char)
-import Data.Trie
-
-import Wrappers.Events
-
+import Control.Eff.Lift as Eff (Lift, lift)
+import Control.Lens
+import Control.Monad.Trans as Trans (lift)
+import Data.Conduit
+import Data.Conduit.Extra
+import Data.Conduit.List as Conduit
+import Data.Foldable (traverse_)
+import Data.StateVar (get)
 import Sound.MIDI
-
-import Main.Graphics
+import Wrappers.Events
+import Wrappers.GLFW
 
 import Input
+import Translator
+import Translator.Keyboard
+import Main.Graphics (resize)
 
-sequence2 :: (Mappable (->) f a (Either a b), Mappable (->) f b (Either a b))
-          => Either (f a) (f b) -> f (Either a b)
-sequence2 = either (map Left) (map Right)
+pressVelocity :: Velocity
+pressVelocity = 64
 
-mswitch :: Functor m2 => (m1 (a, Stream m1 r a) -> m2 (b, Stream m1 r a)) -> Stream m1 r a -> Stream m2 r b
-mswitch f s = Stream $ \r -> mswitch f <$$> f (s $< r)
+granularity :: Tick
+granularity = 2
 
-defaultVelocity :: Velocity
-defaultVelocity = 64
+-- | Beats per minute
+bpm :: Num a => a
+bpm = 60
+
+chord :: Monad m => [Note] -> UnifiedEvent -> EventTranslator m Bool
+chord notes e = do
+    let v = view (velocity pressVelocity) e
+    forM_ notes $ \n -> yield $ Produce $ NoteInput n v
+    return True
+
+harmony :: Monad m => Harmony -> UnifiedEvent -> EventTranslator m Bool
+harmony h e = do
+    let isOn = isJust $ view (velocity pressVelocity) e
+    yield $ Produce $ HarmonyInput h isOn
+    return True
+
+note :: Note -> UnifiedEvent -> Bool
+note (instr, pitch) (Midi (i, p) _) = instr == i && pitch == p
+note _ _ = False
+
+remap :: Monad m => [EventTranslator m ()] -> UnifiedEvent -> EventTranslator m Bool
+remap l e = do
+    let isOn = isJust $ view (velocity pressVelocity) e
+    if isOn
+    then do
+      yield ResetTranslators
+      traverse_ (yield . AddTranslator) l
+      return True
+    else return True
+
+produce :: Monad m => Input -> EventTranslator m ()
+produce = yield . Produce
+
+-- TODO: Make key releases work properly across remaps.
 
 -- | What controls what?
-mapInput :: InputMap
-mapInput = fromMap (map Left <.> fromList ( harmonyButtons
-                                         <> recordButtons
-                                         <> saveButtons
-                                         <> loadButtons
-                                          ))
-        <> pianoMap
-        <> drumMIDI
+inputTranslations :: Monad m => [EventTranslator m ()]
+inputTranslations = pianoMapper <> globalTranslations
     where
-        harmonyButtons = map ((:[]) . KeyButton . CharKey *** Harmony)
-                       $ [(numChar i, [(Nothing, (Nothing, Right $ fromInteger i))]) | i <- [1..9]]
-                      <> [('[', [(Just 32, (Just Percussion, Left 42))])]
-
-        tracks = [1..9]
-
-        recordButtons = map (map2 $ map (KeyButton . CharKey))
-                      $ do i <- tracks
-                           let c = numChar i
-                           [(['Z', c], Track Record i), (['X', c], Track Play i)]
-
-        saveButtons = tracks
-                  <&> \i -> (KeyButton . CharKey <$> ['C', numChar i], Track Save i)
-
-        loadButtons = tracks
-                  <&> \i -> (KeyButton . CharKey <$> ['V', numChar i], Track (Load ()) i)
-
-numChar :: Integer -> Char
-numChar i = "0123456789" ! i
-
-piano :: Pitch -> Note
-piano = (, Instrument 0)
-
-pianoMIDI :: InputMap
-pianoMIDI = fromMap $ fromList $ ((:[]) . Right *** Chord) <$> [(piano n, [piano n]) | n <- [0..120]]
-
-drumMIDI :: InputMap
-drumMIDI = fromMap $ fromList $ ((:[]) . Right *** Chord) <$> [(drum n, [drum n]) | n <- [35..81]]
-    where drum = (, Percussion)
-
-pianoMap :: InputMap
-pianoMap = fromMap (fromList $ noteButtons <> harmonyButtons <> remapButtons) <> pianoMIDI
-    where
-        noteButtons = map ((:[]) . Left . KeyButton . CharKey *** Chord . map piano)
-            [("ASDFGHJK" ! i, [[48, 50, 52, 53, 55, 57, 59, 60] ! i]) | i <- [0..7]]
-
-        harmonyButtons = map ((:[]) . Left . KeyButton . CharKey *** Harmony)
-            [("QWERTYUIOP" ! i, [(Just (-16), (Just $ Instrument 40, Right $ fromInteger i))]) | i <- [0..9]]
-
-        remapButtons = map ((:[]) . Left . KeyButton . CharKey *** Remap)
-            [ (';', violinMap)
+        globalTranslations = BasicPrelude.concat
+            [ pitchHarmonyKeys
+            , drumHarmonyKeys
+            , drumMIDI
+            , [1..9] >>= \i ->
+                [ forever $ contiguously (matchKeyPress <$> [Key'Z, numKey i]) $ produce (Track Record i)
+                , forever $ contiguously (matchKeyPress <$> [Key'X, numKey i]) $ produce (Track Play i)
+                , forever $ contiguously (matchKeyPress <$> [Key'C, numKey i]) $ produce (Track Save i)
+                , forever $ contiguously (matchKeyPress <$> [Key'V, numKey i]) $ produce (Track Load i)
+                ]
             ]
 
-violinMap :: InputMap
-violinMap = fromMap
-          $ (map Left <.> fromList (noteButtons <> harmonyButtons <> remapButtons))
-         <> (map Right <.> fromList violinMIDI)
-    where
-        violin = (, Instrument 40)
+        pitchHarmonyKeys =
+            [1..9] <&> \i ->
+                forever
+                  $ matchKeyPressAndRelease (numKey i)
+                  $ harmony
+                  $ emptyHarmony { changePitch = Just $ DeltaPitch i }
 
-        noteButtons = map ((:[]) . KeyButton . CharKey *** Chord . map violin)
-            [("ASDFGHJK" ! i, [[48, 50, 52, 53, 55, 57, 59, 60] ! i]) | i <- [0..7]]
-
-        harmonyButtons = map ((:[]) . KeyButton . CharKey *** Harmony)
-            [("QWERTYUIOP" ! i, [(Just 8, (Just $ Instrument 0, Right $ fromInteger i))]) | i <- [0..9]]
-
-        remapButtons = map ((:[]) . KeyButton . CharKey *** Remap)
-            [ (';', pianoMap)
+        drumHarmonyKeys =
+            [ forever
+                $ matchKeyPressAndRelease Key'LeftBracket
+                $ harmony
+                $ Harmony { changeVelocity = Just 64, changeInstrument = Just Percussion, changePitch = Just $ Absolute 42 }
             ]
 
-        violinMIDI = map ((:[]) *** Chord)
-            [((36 + i, Instrument 0), [(48 + i, Instrument 40)]) | i <- [0..23]]
+        drumMIDI =
+            [35..81] <&> \n ->
+                forever $ match (note $ drum n) $ chord [drum n]
+          where drum = (, Percussion)
 
-data Context = Context
-             { allMap        :: InputMap                 -- ^ The total mapping of events to inputs
-             , currentMap    :: InputMap                 -- ^ The current mapping of events to inputs
-             , offMap        :: Map UnifiedEvent Input   -- ^ The current mapping of toggle-off events to inputs
-             }
+        pianoMapper = BasicPrelude.concat [pianoMIDI, pianoKeys, violinHarmonies, remapToViolin]
+            where
+              piano :: Pitch -> Note
+              piano = (, Instrument 0)
 
-$(memberTransformers ''Context)
+              pianoMIDI =
+                  [0..120] <&> \n ->
+                      forever $ match (note $ piano n) $ chord [piano n]
 
-inputs :: MIDI env => Stream (Eff env) () [(Maybe Velocity, Input)]
-inputs = (Left <$$> buttons) <&> (<>) <*> (Right <$$> notes) >>> identify convertAll
+              pianoKeys =
+                  [ forever $ matchCharKey 'A' $ chord [piano 48]
+                  , forever $ matchCharKey 'S' $ chord [piano 50]
+                  , forever $ matchCharKey 'D' $ chord [piano 52]
+                  , forever $ matchCharKey 'F' $ chord [piano 53]
+                  , forever $ matchCharKey 'G' $ chord [piano 55]
+                  , forever $ matchCharKey 'H' $ chord [piano 57]
+                  , forever $ matchCharKey 'J' $ chord [piano 59]
+                  , forever $ matchCharKey 'K' $ chord [piano 60]
+                  ]
 
-buttons :: SetMember Lift (Lift IO) env => Stream (Eff env) () [(Bool, Button)]
-buttons = mswitch E.lift
-        $ events
-      >>> S.lift (arr $ traverse toButton)
-      <&> concat
-    where
-        toButton CloseEvent = empty
-        toButton (ResizeEvent s) = resize s $> []
-        toButton (ButtonEvent b s) = return [(s == Press, b)]
-        toButton _ = return []
+              violinHarmonies =
+                  [0..9] <&> \i ->
+                    forever
+                      $ matchCharKey ("QWERTYUIOP" !! i)
+                      $ harmony
+                      $ Harmony { changeVelocity = Just (-16), changeInstrument = Just $ Instrument 40, changePitch = Just $ DeltaPitch $ fromIntegral i }
 
-notes :: MIDI env => Stream (Eff env) () [(Maybe Velocity, Note)]
-notes = S.lift $ arr $ \_-> midiIn
+              remapToViolin = [ forever $ matchKeyPress Key'Semicolon $ remap $ violinMapper <> globalTranslations ]
 
-convertAll :: Stream Id [Either (Bool, Button) (Maybe Velocity, Note)] [(Maybe Velocity, Input)]
-convertAll = map (boolToVelocity <&> sequence2 >>> convert) <&> mapMaybe id
-    where
-        boolToVelocity = arr $ map2 $ map2 (`mcond` defaultVelocity)
+        violinMapper = BasicPrelude.concat [violinMIDI, violinKeys, pianoHarmonies, remapToPiano]
+            where
+              violin :: Pitch -> Note
+              violin = (, Instrument 40)
 
-convert :: Stream Id (Maybe Velocity, UnifiedEvent) (Maybe (Maybe Velocity, Input))
-convert = loop (barr convertFunc) (Context mapInput mapInput mempty) >>> bind hold
-    where
-        convertFunc (Nothing, e) cxt = (do
-                                        (i, off) <- remove e $ offMap cxt
-                                        return ( Just (Nothing, i)
-                                               , cxt { offMap = off }
-                                               )
-                                       ) <?> (Nothing, cxt)
-        convertFunc (Just v, e) cxt = case trie e $ currentMap cxt of
-                                        Nothing -> (Nothing, reset cxt)
-                                        Just (Value i) -> case fromRemap i of
-                                                Just r -> (Nothing, reset $ allMap' (r <>) cxt)
-                                                _ -> ( Just (Just v, i)
-                                                     , offMap' (insertWith (error "double-pressed button") e i)
-                                                     $ reset
-                                                     $ cxt
-                                                     )
-                                        Just c -> (Nothing, cxt { currentMap = c })
+              violinMIDI = 
+                  [0..23] <&> \i ->
+                      forever $ match (note (36 + i, Instrument 0)) $ chord [(48 + i, Instrument 40)]
 
-        reset = currentMap' =<< \cxt _-> allMap cxt
+              violinKeys =
+                  [0..7] <&> \i ->
+                      forever $ matchCharKey ("ASDFGHJK" !! i) $ chord [violin $ [48, 50, 52, 53, 55, 57, 59, 60] !! i]
+
+              pianoHarmonies =
+                  [0..9] <&> \i ->
+                      forever
+                        $ matchCharKey ("QWERTYUIOP" !! i)
+                        $ harmony
+                        $ Harmony { changeVelocity = Just 8, changeInstrument = Just $ Instrument 0, changePitch = Just $ DeltaPitch $ fromIntegral i }
+
+              remapToPiano = [ forever $ matchKeyPress Key'Semicolon $ remap $ pianoMapper <> globalTranslations ]
+
+-- TODO: sleep between yields
+timesteps :: SetMember Lift (Lift IO) env => Source (Eff env) (Maybe Input)
+timesteps = forever (yieldM (liftIO $ get time))
+      $= Conduit.map toTick
+      $= void (mapAccum delta Nothing)
+      $= Conduit.map (\d -> if d > 0 then Just (Timestep d) else Nothing)
+  where
+    delta t prev = (Just t, maybe 0 (t -) prev)
+
+    -- TODO: Investigate overflow scenarios
+    toTick :: Double -> Tick
+    toTick t = floor (t * bpm * 96 / 60 / fromIntegral granularity) * granularity
+
+inputs :: MIDI env => Source (Eff env) Input
+inputs = zipSourceWith (\a b -> [a, b]) timesteps
+          (  forever (yieldM $ (<>) <$> buttons <*> notes)
+          $= Conduit.map (fmap Just)
+          $= Conduit.map (Nothing:)
+          $= Conduit.concat
+          $= fmapMaybe 
+              (  filterIOEvents
+              $= Conduit.mapM (\x -> x <$ Eff.lift (putStrLn $ fromString ("input to translator ") <> show x))
+              $= translator inputTranslations
+              $= Conduit.mapM (\x -> x <$ Eff.lift (putStrLn $ fromString ("output from translator ") <> show x))
+              )
+          )
+        $= Conduit.concat
+        $= Conduit.catMaybes
+  where
+      filterIOEvents = awaitOr () $ \e -> case e of
+              Event CloseEvent -> Trans.lift $ Eff.lift $ putStrLn $ fromString "CloseEvent received"
+              Event (ResizeEvent s) -> do
+                  Trans.lift (Eff.lift $ resize s)
+                  filterIOEvents
+              _ -> yield e >> filterIOEvents
+
+      buttons :: SetMember Lift (Lift IO) env => Eff env [UnifiedEvent]
+      buttons = fmap Event <$> Eff.lift popEvents
+
+      notes :: MIDI env => Eff env [UnifiedEvent]
+      notes = fmap (\(v, n) -> Midi n v) <$> midiIn

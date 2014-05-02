@@ -1,90 +1,100 @@
-{-# LANGUAGE NoImplicitPrelude
-           , DeriveFunctor
-           , DeriveFoldable
-           , FlexibleInstances
-           , MultiParamTypeClasses
-           #-}
+{-# LANGUAGE EmptyDataDecls #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE RankNTypes #-}
 -- | Program-specific input types
 module Input ( Input (..)
              , TrackCommand (..)
-             , UnifiedEvent
-             , Harmony
+             , UnifiedEvent (..)
+             , PitchShift (..)
+             , Harmony (..)
+             , EventTranslator
+             , EventTranslation
              , Track
-             , InputMap
-             , fromChord
-             , fromHarmony
-             , fromRemap
-             , fromTrack
-             , fromLoad
+             , emptyHarmony
+             , velocity
              , harmonize
              ) where
 
-import Summit.Prelewd
+import Prelude ()
+import BasicPrelude
 
-import Data.Int
-import Data.Trie
-import Text.Show (Show)
+import Control.Lens
+import Data.Text
 
 import Sound.MIDI.Types
 
 import Wrappers.Events
 
-import Types
+import Translator
 
 -- | Cap a number between its min and max.
 bound :: (Ord a, Bounded a) => a -> a
 bound = min maxBound . max minBound
 
-type UnifiedEvent = Either Button Note
--- | A Harmony consists of an optional velocity shift,
--- an optional instrument, and either a static pitch or a pitch shift
-type Harmony = (Maybe Int16, (Maybe Instrument, Either Pitch Int16))
-type InputMap = Trie UnifiedEvent Input
+data UnifiedEvent
+      = Event Event
+      | Midi Note (Maybe Velocity)
+  deriving (Show, Eq, Ord)
 
-data Input = Chord [Note]
-           | Harmony [Harmony]
-           | Remap InputMap
-           | Track (TrackCommand ()) Track
-    deriving (Show, Eq, Ord)
+data PitchShift
+    = DeltaPitch Pitch
+    | Absolute Pitch
+  deriving (Show, Read, Eq, Ord)
 
-data TrackCommand a = Record
-                    | Play
-                    | Save
-                    | Load a
-    deriving (Show, Eq, Ord, Functor, Foldable)
+instance Hashable PitchShift where
+  hashWithSalt s p = hashWithSalt s $ case p of
+                        Absolute a -> Left a
+                        DeltaPitch dp -> Right dp
 
-instance Applicative f => Sequential TrackCommand f a where
-  sequence (Load f) = Load <$> f
-  sequence Record = pure Record
-  sequence Play = pure Play
-  sequence Save = pure Save
+data Harmony = Harmony
+    { changePitch :: Maybe PitchShift
+    , changeInstrument :: Maybe Instrument
+    , changeVelocity :: Maybe Velocity
+    }
+  deriving (Show, Read, Eq, Ord)
 
-instance Applicative f => Traversable TrackCommand f a b
+instance Hashable Harmony where
+  hashWithSalt s (Harmony a b c) = hashWithSalt s (a, b, c)
 
-fromChord :: Input -> Maybe [Note]
-fromChord (Chord s) = Just s
-fromChord _ = Nothing
+emptyHarmony :: Harmony 
+emptyHarmony = Harmony Nothing Nothing Nothing
 
-fromHarmony :: Input -> Maybe [Harmony]
-fromHarmony (Harmony hs) = Just hs
-fromHarmony _ = Nothing
+type EventTranslation m = Translation m UnifiedEvent Input
+type EventTranslator m = Translator m UnifiedEvent Input
 
-fromTrack :: Input -> Maybe (TrackCommand (), Track)
-fromTrack (Track c t) = Just (c, t)
-fromTrack _ = Nothing
+type Track = Integer
 
-fromRemap :: Input -> Maybe InputMap
-fromRemap (Remap r) = Just r
-fromRemap _ = Nothing
+data Input
+        = NoteInput Note (Maybe Velocity)
+        | HarmonyInput Harmony Bool
+        | Track TrackCommand Track
+        | Timestep Tick
+    deriving (Show, Read, Eq, Ord)
 
-fromLoad :: TrackCommand a -> Maybe a
-fromLoad (Load a) = Just a
-fromLoad _ = Nothing
+data TrackCommand = Record
+                  | Play
+                  | Save
+                  | Load
+    deriving (Show, Read, Eq, Ord)
+
+-- | @Nothing@ for an off signal, @Just v@ for an on signal with velocity.
+velocity ::
+    Velocity {-^ default velocity for on events with no velocity details -} ->
+    Getter UnifiedEvent (Maybe Velocity)
+velocity def = to getVelocity
+  where
+    getVelocity (Event (KeyEvent _ KeyState'Pressed _)) = Just def
+    getVelocity (Event (KeyEvent _ KeyState'Released _)) = Nothing
+    getVelocity (Midi _ v) = Just $ fromMaybe def v
+    getVelocity e = error $ "velocity not defined for event " <> unpack (show e)
 
 -- | Apply a harmony to a note.
-harmonize :: Harmony -> (Velocity, Note) -> (Velocity, Note)
-harmonize (dv, (inst, dp)) (v, (p, i)) = ( (fromIntegral >>> try (+) dv >>> bound >>> fromIntegral) v
-                                         , ( either id ((fromIntegral p +) >>> bound >>> fromIntegral) dp
-                                           , inst <?> i
-                                           )
-                                         )
+harmonize :: Harmony -> (Note, Maybe Velocity) -> (Note, Maybe Velocity)
+harmonize h ((p, i), v)
+    = let v' = fromIntegral . bound . maybe id (+) (changeVelocity h) . fromIntegral <$> v
+          p' = case changePitch h of
+                  Nothing -> p
+                  Just (Absolute a) -> a
+                  Just (DeltaPitch dp) -> fromIntegral $ bound $ fromIntegral p + dp
+          inst' = fromMaybe i $ changeInstrument h
+      in ((p', inst'), v')
