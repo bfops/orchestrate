@@ -85,7 +85,7 @@ velocity def = to getVelocity
   where
     getVelocity (Event (KeyEvent _ KeyState'Pressed _)) = Just def
     getVelocity (Event (KeyEvent _ KeyState'Released _)) = Nothing
-    getVelocity (Midi _ v) = Just $ fromMaybe def v
+    getVelocity (Midi _ v) = v
     getVelocity e = error $ "velocity not defined for event " <> unpack (show e)
 
 -- | Apply a harmony to a note.
