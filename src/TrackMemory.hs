@@ -1,6 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 module TrackMemory ( TrackMemory (..)
+                   , TrackOutput (..)
                    , MemoryBank
                    , track
                    , trackData
@@ -18,12 +19,17 @@ import Sound.MIDI.Types
 
 import Input
 
+data TrackOutput
+    = RestOutput Tick
+    | NoteOutput Note (Maybe Velocity)
+  deriving (Show, Read)
+
 data TrackMemory = TrackMemory
-        { _trackData :: Vector (Either Tick (Note, Maybe Velocity)) -- ^ Either a timestep or an output
+        { _trackData :: Vector TrackOutput
         , _recording :: Bool
         , _playState :: Maybe (Int, Tick)
         }
-  deriving (Show)
+  deriving (Show, Read)
 
 $(makeLenses ''TrackMemory)
 

@@ -88,10 +88,11 @@ stepLogic ::
     Input ->
     Conduit i (Eff env) (Note, Maybe Velocity)
 stepLogic tracks harmoniesVar
-      = \e -> justProcessInput e
-          -- Append all the notes that are produced to all the recording tracks.
-          =$= Conduit.mapM (sideEffect $ \notes -> onRecordingTracks (`snoc` Right notes))
-           >> onRecordingTracks (snocIfTimestep e)
+      = \e -> do
+          justProcessInput e
+              -- Append all the notes that are produced to all the recording tracks.
+              =$= Conduit.mapM (sideEffect $ \(note, v) -> onRecordingTracks (`snoc` NoteOutput note v))
+          onRecordingTracks (snocIfTimestep e)
   where
     -- just handle the immediate "consequences" of the input,
     -- with no real attention paid to "long-term" effects.
@@ -138,11 +139,16 @@ stepLogic tracks harmoniesVar
           then over trackData f t
           else t
 
-    snocIfTimestep (Timestep dt) t = snoc t (Left dt)
+    snocIfTimestep (Timestep dt) t = snoc t (RestOutput dt)
     snocIfTimestep _ t = t
 
-    toggleRecording t = let recordState = not $ view recording t
-                        in (if recordState then set trackData Vector.empty else id) $ over recording not t
+    -- TODO: When recording finishes, release all started notes.
+    -- TODO: Don't allow release events without corresponding push events to be recorded/played back.
+    toggleRecording t
+        = let t' = over recording not t
+          in if view recording t'
+             then set trackData Vector.empty t'
+             else t'
     togglePlaying = over playState $ maybe (Just (0, 0)) (\_-> Nothing)
 
     advancePlayBy dt t
@@ -155,9 +161,9 @@ stepLogic tracks harmoniesVar
     continueTo t start v outs
         = if start < Vector.length v
           then case v Vector.! start of
-                Left dt ->
+                RestOutput dt ->
                   if dt < t
                   then continueTo (t - dt) (start + 1) v outs
                   else (Just (start, t), outs)
-                Right out -> continueTo t (start + 1) v (out : outs)
+                NoteOutput note vel -> continueTo t (start + 1) v ((note, vel) : outs)
           else (Nothing, outs)
