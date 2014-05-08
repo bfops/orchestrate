@@ -132,14 +132,18 @@ inputTranslations = pianoMapper <> globalTranslations
 
               remapToViolin = [ forever $ matchKeyPress Key'Semicolon $ remap $ violinMapper <> globalTranslations ]
 
-        violinMapper = BasicPrelude.concat [violinMIDI, violinKeys, pianoHarmonies, remapToPiano]
+        violinMapper = BasicPrelude.concat [violinMIDI, pianoMIDI, violinKeys, pianoHarmonies, remapToPiano]
             where
               violin :: Pitch -> Note
               violin = (, Instrument 40)
 
               violinMIDI = 
-                  [0..23] <&> \i ->
-                      forever $ match (note (36 + i, Instrument 0)) $ chord [(48 + i, Instrument 40)]
+                  [36..59] <&> \i ->
+                      forever $ match (note (i, Instrument 0)) $ chord [(24 + i, Instrument 40)]
+
+              pianoMIDI =
+                  [60..120] <&> \i ->
+                      forever $ match (note (i, Instrument 0)) $ chord [(i, Instrument 0)]
 
               violinKeys =
                   [0..7] <&> \i ->
