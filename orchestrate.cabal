@@ -11,7 +11,7 @@ Cabal-Version:       >= 1.9.2
 executable orchestrate
     hs-source-dirs: src
     Main-is:        Main.hs
-    GHC-Options:    -Wall -Werror -threaded -rtsopts=all
+    GHC-Options:    -Wall -threaded -rtsopts=all
 
     Build-Depends:
                     basic-prelude == 0.3.8.*,
@@ -37,7 +37,7 @@ test-suite Tests
     type:           exitcode-stdio-1.0
     hs-source-dirs: test src
     main-is:        TestMain.hs
-    GHC-Options:    -Wall -Werror -fno-warn-missing-signatures
+    GHC-Options:    -Wall -fno-warn-missing-signatures
 
     build-depends:
                     basic-prelude,
