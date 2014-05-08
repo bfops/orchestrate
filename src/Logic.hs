@@ -1,6 +1,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE CPP #-}
 module Logic ( logic
              ) where
 
@@ -19,12 +20,16 @@ import Data.HashMap.Strict as HashMap
 import Data.Refcount
 import Data.Text (unpack)
 import Data.Traversable
-import Data.Typeable
 import Data.Vector as Vector
 import Sound.MIDI
 
 import Input
 import TrackMemory
+
+#if MIN_VERSION_base(4,7,0)
+#else
+#define Typeable Typeable1
+#endif
 
 trackFile :: Track -> FilePath
 trackFile t = fromString $ "track" <> unpack (show t)
@@ -47,7 +52,7 @@ hold = inner mempty
           (note, Just _) -> yield e
                          >> inner (insertRef note held)
 
-liftSTMConduit :: (Typeable1 m, MonadIO m, SetMember Lift (Lift m) r) => STM a -> ConduitM i o (Eff r) a
+liftSTMConduit :: (Typeable m, MonadIO m, SetMember Lift (Lift m) r) => STM a -> ConduitM i o (Eff r) a
 liftSTMConduit = Trans.lift . liftIO . atomically
 
 logic :: SetMember Lift (Lift IO) env => Conduit Input (Eff env) (Note, Maybe Velocity)

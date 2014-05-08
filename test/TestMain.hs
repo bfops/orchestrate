@@ -1,5 +1,3 @@
-import System.IO
-
 import Test.Framework
 
 import ConduitTest
