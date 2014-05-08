@@ -19,7 +19,7 @@ executable orchestrate
                     containers == 0.5.*,
                     extensible-effects == 1.4.*,
                     game-wrappers == 0.4.*,
-                    imidi == 0.9.*,
+                    imidi == 0.10.*,
                     lens == 4.1.*,
                     mtl == 2.1.*,
                     QuickCheck,
@@ -28,7 +28,7 @@ executable orchestrate
                     stm == 2.4.*,
                     stm-conduit == 2.4.*,
                     text,
-                    transformers == 0.3.0.*,
+                    transformers == 0.3.*,
                     unordered-containers == 0.2.4.*,
                     vector == 0.10.9.*,
                     base

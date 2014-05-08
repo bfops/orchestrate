@@ -23,8 +23,8 @@ import Main.Input
 import Input
 import Logic
 
-drumChannel :: Num a => a
-drumChannel = 9
+drumc :: Channel
+drumc = 9
 
 windowSize :: Num a => (a, a)
 windowSize = (64, 64)
@@ -53,7 +53,7 @@ main = do
         putStrLn $ fromString "events initialized"
         putStrLn $ fromString "initializing MIDI"
         void
-          $ runMIDI title outMIDI inMIDI
+          $ runMIDI title outMIDI inMIDI drumc
           $ \midiState -> void
                         $ runLift
                         $ runState midiState
@@ -83,5 +83,5 @@ main = do
             flush
 
         sendMIDI :: MIDI env => (Note, Maybe Velocity) -> Eff env ()
-        sendMIDI (note, Just v) = startNote drumChannel v note
-        sendMIDI (note, Nothing) = stopNote drumChannel   note
+        sendMIDI (note, Just v) = startNote v note
+        sendMIDI (note, Nothing) = stopNote   note
