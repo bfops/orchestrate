@@ -155,16 +155,30 @@ stepLogic tracks harmoniesVar
           then over trackData f t
           else t
 
-    snocIfTimestep (Timestep dt) t = snoc t (RestOutput dt)
+    snocIfTimestep (Timestep dt) v
+        -- don't pad dead time before notes
+        = if Vector.null v
+          then v
+          else snoc v (RestOutput dt)
     snocIfTimestep _ t = t
 
     -- TODO: When recording finishes, release all started notes.
     -- TODO: Don't allow release events without corresponding push events to be recorded/played back.
     toggleRecording t
-        = let t' = over recording not t
-          in if view recording t'
-             then set trackData Vector.empty t'
-             else t'
+        = let t' = over recording not t in
+          if view recording t'
+          then set trackData Vector.empty t'
+          else over trackData stripSuffixRests t'
+
+    stripSuffixRests v
+      = let len = Vector.length v
+        in
+          if len == 0
+          then v
+          else case Vector.last v of
+                RestOutput _ -> stripSuffixRests $ Vector.take (len - 1) v
+                _ -> v
+
     togglePlaying = over playState $ maybe (Just (0, 0)) (\_-> Nothing)
 
     advancePlayBy dt t
