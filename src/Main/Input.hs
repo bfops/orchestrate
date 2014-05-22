@@ -17,6 +17,7 @@ import Data.Conduit
 import Data.Conduit.Extra
 import Data.Conduit.List as Conduit
 import Data.Foldable (traverse_)
+import Data.List as List
 import Data.StateVar (get)
 import Sound.MIDI
 import Wrappers.Events
@@ -66,22 +67,23 @@ remap l e = do
 produce :: Monad m => Input -> EventTranslator m ()
 produce = yield . Produce
 
+octave :: Pitch
+octave = 12
+
 -- TODO: Make key releases work properly across remaps.
 
 -- | What controls what?
 inputTranslations :: Monad m => [EventTranslator m ()]
-inputTranslations = pianoMapper <> globalTranslations
+inputTranslations = pianoMapper 0 <> globalTranslations
     where
+        trackCommands = (,) <$> [1..9] <*> zip [Key'Z, Key'X, Key'C, Key'V] [Record, Play, Save, Load]
+
         globalTranslations = BasicPrelude.concat
             [ pitchHarmonyKeys
             , drumHarmonyKeys
             , drumMIDI
-            , [1..9] >>= \i ->
-                [ forever $ contiguously (matchKeyPress <$> [Key'Z, numKey i]) $ produce (Track Record i)
-                , forever $ contiguously (matchKeyPress <$> [Key'X, numKey i]) $ produce (Track Play i)
-                , forever $ contiguously (matchKeyPress <$> [Key'C, numKey i]) $ produce (Track Save i)
-                , forever $ contiguously (matchKeyPress <$> [Key'V, numKey i]) $ produce (Track Load i)
-                ]
+            , trackCommands <&> \(i, (key, cmd)) ->
+                forever $ contiguously (matchKeyPress <$> [key, numKey i]) $ produce (Track cmd i)
             ]
 
         pitchHarmonyKeys =
@@ -103,51 +105,58 @@ inputTranslations = pianoMapper <> globalTranslations
                 forever $ match (note $ drum n) $ chord [drum n]
           where drum = (, Percussion)
 
-        pianoMapper = BasicPrelude.concat [pianoMIDI, pianoKeys, violinHarmonies, remapToViolin]
+        -- The changes in pitch along the absolute-pitch keys.
+        keySteps = [0, 2, 4, 5, 7, 9, 11, 12]
+
+        pianoMapper root
+            = BasicPrelude.concat [pianoMIDI, pianoKeys, violinHarmonies, remapToViolin, pitchShiftKeys]
             where
-              piano :: Pitch -> Note
+              piano, guitar :: Pitch -> Note
               piano = (, Instrument 0)
+              guitar = (, Instrument 1)
 
               pianoMIDI =
                   [0..120] <&> \n ->
-                      forever $ match (note $ piano n) $ chord [piano n]
+                      forever $ match (note $ piano n) $ chord [guitar $ n + root]
 
               pianoKeys =
-                  [ forever $ matchCharKey 'A' $ chord [piano 48]
-                  , forever $ matchCharKey 'S' $ chord [piano 50]
-                  , forever $ matchCharKey 'D' $ chord [piano 52]
-                  , forever $ matchCharKey 'F' $ chord [piano 53]
-                  , forever $ matchCharKey 'G' $ chord [piano 55]
-                  , forever $ matchCharKey 'H' $ chord [piano 57]
-                  , forever $ matchCharKey 'J' $ chord [piano 59]
-                  , forever $ matchCharKey 'K' $ chord [piano 60]
-                  ]
+                zip "ASDFGHJK" keySteps <&> \(key, step) ->
+                  forever $ matchCharKey key $ chord [piano $ 4 * octave + root + step]
 
               violinHarmonies =
                   [0..9] <&> \i ->
                     forever
                       $ matchCharKey ("QWERTYUIOP" !! i)
                       $ harmony
-                      $ Harmony { changeVelocity = Just (-16), changeInstrument = Just $ Instrument 40, changePitch = Just $ DeltaPitch $ fromIntegral i }
+                      $ Harmony
+                      { changeVelocity = Just (-16)
+                      , changeInstrument = Just $ Instrument 40
+                      , changePitch = Just $ DeltaPitch $ fromIntegral i
+                      }
 
-              remapToViolin = [ forever $ matchKeyPress Key'Semicolon $ remap $ violinMapper <> globalTranslations ]
+              remapToViolin = [ forever $ matchKeyPress Key'Semicolon $ remap $ violinMapper root <> globalTranslations ]
 
-        violinMapper = BasicPrelude.concat [violinMIDI, pianoMIDI, violinKeys, pianoHarmonies, remapToPiano]
+              pitchShiftKeys =
+                  [ forever $ matchKeyPress Key'M $ remap $ pianoMapper (root + 1) <> globalTranslations
+                  , forever $ matchKeyPress Key'N $ remap $ pianoMapper (root - 1) <> globalTranslations
+                  ]
+
+        violinMapper root = BasicPrelude.concat [violinMIDI, pianoMIDI, violinKeys, pianoHarmonies, remapToPiano, pitchShiftKeys]
             where
               violin :: Pitch -> Note
               violin = (, Instrument 40)
 
               violinMIDI = 
                   [36..59] <&> \i ->
-                      forever $ match (note (i, Instrument 0)) $ chord [(24 + i, Instrument 40)]
+                      forever $ match (note (i, Instrument 0)) $ chord [violin $ 2 * octave + i + root]
 
               pianoMIDI =
                   [60..120] <&> \i ->
-                      forever $ match (note (i, Instrument 0)) $ chord [(i, Instrument 0)]
+                      forever $ match (note (i, Instrument 0)) $ chord [(i + root, Instrument 0)]
 
               violinKeys =
-                  [0..7] <&> \i ->
-                      forever $ matchCharKey ("ASDFGHJK" !! i) $ chord [violin $ [48, 50, 52, 53, 55, 57, 59, 60] !! i]
+                  zip [0..7] keySteps <&> \(i, step) ->
+                      forever $ matchCharKey ("ASDFGHJK" !! i) $ chord [violin $ 4 * octave + step + root]
 
               pianoHarmonies =
                   [0..9] <&> \i ->
@@ -156,7 +165,12 @@ inputTranslations = pianoMapper <> globalTranslations
                         $ harmony
                         $ Harmony { changeVelocity = Just 8, changeInstrument = Just $ Instrument 0, changePitch = Just $ DeltaPitch $ fromIntegral i }
 
-              remapToPiano = [ forever $ matchKeyPress Key'Semicolon $ remap $ pianoMapper <> globalTranslations ]
+              remapToPiano = [ forever $ matchKeyPress Key'Semicolon $ remap $ pianoMapper root <> globalTranslations ]
+
+              pitchShiftKeys =
+                  [ forever $ matchKeyPress Key'M $ remap $ violinMapper (root + 1) <> globalTranslations
+                  , forever $ matchKeyPress Key'N $ remap $ violinMapper (root - 1) <> globalTranslations
+                  ]
 
 -- TODO: sleep between yields
 timesteps :: SetMember Lift (Lift IO) env => Source (Eff env) (Maybe Input)
