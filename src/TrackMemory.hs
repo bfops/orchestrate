@@ -3,10 +3,11 @@
 module TrackMemory ( TrackMemory (..)
                    , TrackOutput (..)
                    , MemoryBank
-                   , track
                    , trackData
                    , recording
                    , playState
+                   , isPlaying
+                   , track
                    ) where
 
 import Prelude ()
@@ -34,6 +35,9 @@ data TrackMemory = TrackMemory
 $(makeLenses ''TrackMemory)
 
 type MemoryBank = HashMap Track TrackMemory
+
+isPlaying :: IndexPreservingGetter TrackMemory Bool
+isPlaying = to $ isJust . view playState
 
 track :: Track -> Lens' MemoryBank TrackMemory
 track t = lens (lookupDefault trackNotFoundError t) (\m v -> insert t v m)
