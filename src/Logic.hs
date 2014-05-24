@@ -139,7 +139,7 @@ stepLogic tracks harmoniesVar
 
         Track Load t -> do
           dat <- read <$> Trans.lift (liftIO $ readFile (trackFile t))
-          liftIO $ atomically $ modifyTVar tracks $ over (track t) $ set trackData dat
+          modifyExtant tracks t $ set trackData dat
 
         Timestep dt -> do
           outs <- liftIO $ atomically $ modifyTVarWith tracks $ \mem -> let
