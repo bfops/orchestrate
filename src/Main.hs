@@ -1,5 +1,6 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 -- | Main module, entry point
 module Main (main) where
 
@@ -44,26 +45,26 @@ inMIDI = fromList []
 -- | Entry point
 main :: IO ()
 main = do
-      putStrLn $ fromString "initializing GLFW"
+      putStrLn "initializing GLFW"
       result <- runGLFW title Nothing (0, 0 :: Integer) windowSize
         $ \wnd -> do
-          putStrLn $ fromString "GLFW initialized"
-          putStrLn $ fromString "initializing events"
+          putStrLn "GLFW initialized"
+          putStrLn "initializing events"
           initEvents wnd
-          putStrLn $ fromString "events initialized"
-          putStrLn $ fromString "initializing MIDI"
+          putStrLn "events initialized"
+          putStrLn "initializing MIDI"
           void
             $ runMIDI title outMIDI inMIDI drumc
             $ \midiState -> void
                           $ runLift
                           $ runState midiState
                           $ do
-                              putStrLn $ fromString "MIDI initialized"
+                              putStrLn "MIDI initialized"
                               tempo (div 60000000 bpm)
                               mainLoop wnd inputs
-                              putStrLn $ fromString "done MIDI"
-      maybe (putStrLn $ fromString "error initializing GLFW") return result
-      putStrLn $ fromString "closing"
+                              putStrLn "done MIDI"
+      maybe (putStrLn "error initializing GLFW") return result
+      putStrLn "closing"
     where
         mainLoop ::
             (Functor (Eff env), Monad (Eff env), MIDI env) =>
@@ -72,9 +73,9 @@ main = do
             Eff env ()
         mainLoop wnd inputSource
             =  inputSource
-            $= Conduit.mapM (\x -> x <$ Eff.lift (putStrLn $ fromString ("input to logic ") <> show x))
+            $= Conduit.mapM (\x -> x <$ Eff.lift (putStrLn $ "input to logic " <> show x))
             $= logic
-            $= Conduit.mapM (\x -> x <$ Eff.lift (putStrLn $ fromString ("output from logic ") <> show x))
+            $= Conduit.mapM (\x -> x <$ Eff.lift (putStrLn $ "output from logic " <> show x))
             $$ awaitForever (ioUpdates wnd)
 
         ioUpdates wnd note = Base.lift $ do
