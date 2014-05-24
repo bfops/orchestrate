@@ -44,25 +44,26 @@ inMIDI = fromList []
 -- | Entry point
 main :: IO ()
 main = do
-    putStrLn $ fromString "initializing GLFW"
-    runGLFW title Nothing (0, 0 :: Integer) windowSize
-     $ \wnd -> do
-        putStrLn $ fromString "GLFW initialized"
-        putStrLn $ fromString "initializing events"
-        initEvents wnd
-        putStrLn $ fromString "events initialized"
-        putStrLn $ fromString "initializing MIDI"
-        void
-          $ runMIDI title outMIDI inMIDI drumc
-          $ \midiState -> void
-                        $ runLift
-                        $ runState midiState
-                        $ do
-                            putStrLn $ fromString "MIDI initialized"
-                            tempo (div 60000000 bpm)
-                            mainLoop wnd inputs
-                            putStrLn $ fromString "done MIDI"
-        putStrLn $ fromString "closing"
+      putStrLn $ fromString "initializing GLFW"
+      result <- runGLFW title Nothing (0, 0 :: Integer) windowSize
+        $ \wnd -> do
+          putStrLn $ fromString "GLFW initialized"
+          putStrLn $ fromString "initializing events"
+          initEvents wnd
+          putStrLn $ fromString "events initialized"
+          putStrLn $ fromString "initializing MIDI"
+          void
+            $ runMIDI title outMIDI inMIDI drumc
+            $ \midiState -> void
+                          $ runLift
+                          $ runState midiState
+                          $ do
+                              putStrLn $ fromString "MIDI initialized"
+                              tempo (div 60000000 bpm)
+                              mainLoop wnd inputs
+                              putStrLn $ fromString "done MIDI"
+      maybe (putStrLn $ fromString "error initializing GLFW") return result
+      putStrLn $ fromString "closing"
     where
         mainLoop ::
             (Functor (Eff env), Monad (Eff env), MIDI env) =>

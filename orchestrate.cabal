@@ -18,7 +18,7 @@ executable orchestrate
                     conduit == 1.1.1.*,
                     containers == 0.5.*,
                     extensible-effects == 1.4.*,
-                    game-wrappers == 0.4.*,
+                    game-wrappers == 0.5.*,
                     imidi == 0.10.*,
                     lens == 4.1.*,
                     mtl == 2.1.*,
