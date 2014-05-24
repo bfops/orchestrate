@@ -1,5 +1,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE DoAndIfThenElse #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE CPP #-}
 module Logic ( logic
@@ -21,6 +23,7 @@ import Data.Text (unpack)
 import Data.Vector as Vector
 import Sound.MIDI
 
+import Data.Conduit.Extra
 import Input
 import TrackMemory
 
@@ -30,25 +33,28 @@ import TrackMemory
 #endif
 
 trackFile :: Track -> FilePath
-trackFile t = fromString $ "track" <> unpack (show t)
+trackFile t = fromString $ unpack $ "track" <> show t
 
-hold :: (Monad m, Hashable a, Eq a) => Conduit (a, Maybe b) m (a, Maybe b)
+-- | "Hold" inputs by counting the number of @Just@ and @Nothing@ (on and off)
+-- signals for a given @a@, and only send the off signal corresponding to the
+-- last on signal.
+hold :: (MonadIO m, Hashable a, Eq a) => Conduit (a, Maybe b) m (a, Maybe b)
 hold = inner mempty
   where
     inner held = do
-      mi <- await
-      case mi of
-        Nothing -> return ()
-        Just e -> case e of
-          (note, Nothing) -> case removeRef note held of
-            Nothing -> inner held
+      awaitOr () $ \case
+        e@(note, Nothing) -> case removeRef note held of
+            Nothing -> do
+                putStrLn $ "off signal without corresponding on signal"
+                inner held
             Just (removed, held') -> do
                 if removed
                 then yield e
                 else return ()
                 inner held'
-          (note, Just _) -> yield e
-                         >> inner (insertRef note held)
+        e@(note, Just _) -> do
+            yield e
+            inner (insertRef note held)
 
 liftSTMConduit :: (Typeable m, MonadIO m, SetMember Lift (Lift m) r) => STM a -> ConduitM i o (Eff r) a
 liftSTMConduit = Trans.lift . liftIO . atomically
