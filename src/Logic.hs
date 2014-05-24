@@ -173,8 +173,12 @@ stepLogic tracks harmoniesVar
     toggleRecording t
         = let t' = over recording not t in
           if view recording t'
-          then set trackData Vector.empty t'
-          else over trackData stripSuffixRests t'
+          then
+            let t'' = set trackData Vector.empty t' in
+            if view isPlaying t''
+            then togglePlaying (error "togglePlaying on") t''
+            else t''
+          else t'
 
     -- this doesn't play nicely with track looping
     stripSuffixRests v
@@ -186,7 +190,11 @@ stepLogic tracks harmoniesVar
                 RestOutput _ -> stripSuffixRests $ Vector.take (len - 1) v
                 _ -> v
 
-    togglePlaying l = over playState $ maybe (Just (0, 0, l)) (\_-> Nothing)
+    togglePlaying l t
+        = let t' = over playState (maybe (Just (0, 0, l)) (\_-> Nothing)) t in
+          if view isPlaying t' && view recording t'
+          then toggleRecording t'
+          else t'
 
     advancePlayBy = \dt t -> case view playState t of
           Nothing -> ([], t)
