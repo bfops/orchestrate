@@ -130,8 +130,8 @@ stepLogic tracks harmoniesVar
         Track Record t -> do
           modifyExtant tracks t toggleRecording
 
-        Track Play t -> do
-          modifyExtant tracks t togglePlaying
+        Track (Play l) t -> do
+          modifyExtant tracks t (togglePlaying l)
 
         Track Save t -> do
           dat <- liftIO $ atomically $ readTVar tracks <&> view (track t) <&> view trackData
@@ -176,6 +176,7 @@ stepLogic tracks harmoniesVar
           then set trackData Vector.empty t'
           else over trackData stripSuffixRests t'
 
+    -- this doesn't play nicely with track looping
     stripSuffixRests v
       = let len = Vector.length v
         in
@@ -185,21 +186,23 @@ stepLogic tracks harmoniesVar
                 RestOutput _ -> stripSuffixRests $ Vector.take (len - 1) v
                 _ -> v
 
-    togglePlaying = over playState $ maybe (Just (0, 0)) (\_-> Nothing)
+    togglePlaying l = over playState $ maybe (Just (0, 0, l)) (\_-> Nothing)
 
-    advancePlayBy dt t
-        = case view playState t of
-            Nothing -> ([], t)
-            Just (start, remaining) -> let
-                  (playState', outs) = continueTo (dt + remaining) start (view trackData t) []
-                in (Base.reverse outs, set playState playState' t)
-
-    continueTo t start v outs
-        = if start < Vector.length v
-          then case v Vector.! start of
-                RestOutput dt ->
-                  if dt < t
-                  then continueTo (t - dt) (start + 1) v outs
-                  else (Just (start, t), outs)
-                NoteOutput note vel -> continueTo t (start + 1) v ((note, vel) : outs)
-          else (Nothing, outs)
+    advancePlayBy = \dt t -> case view playState t of
+          Nothing -> ([], t)
+          Just (start, remaining, l) -> let
+                (playState', outs) = continueTo l (dt + remaining) start (view trackData t) []
+              in (Base.reverse outs, set playState playState' t)
+      where
+        continueTo l t start v outs
+            = if start < Vector.length v
+              then case v Vector.! start of
+                    RestOutput dt ->
+                      if dt < t
+                      then continueTo l (t - dt) (start + 1) v outs
+                      else (Just (start, t, l), outs)
+                    NoteOutput note vel -> continueTo l t (start + 1) v ((note, vel) : outs)
+              else case l of
+                    Once -> (Nothing, outs)
+                    -- TODO: if we try to play an empty track, this asplodes - FIX
+                    Loop -> continueTo l t 0 v outs

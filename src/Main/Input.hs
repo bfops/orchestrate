@@ -9,6 +9,7 @@ module Main.Input ( inputs
 import Prelude ()
 import BasicPrelude hiding (map, mapM, mapM_, scanl, zip, zipWith, filter, sequence)
 
+import Control.Applicative
 import Control.Eff
 import Control.Eff.Lift as Eff (Lift, lift)
 import Control.Lens
@@ -76,7 +77,14 @@ octave = 12
 inputTranslations :: Monad m => [EventTranslator m ()]
 inputTranslations = pianoMapper 0 <> globalTranslations
     where
-        trackCommands = (,) <$> [1..9] <*> zip [Key'Z, Key'X, Key'C, Key'V] [Record, Play, Save, Load]
+        trackCommands
+            = liftA2 (,) [1..9]
+                [ (Key'Z, Record)
+                , (Key'X, Play Once)
+                , (Key'C, Save)
+                , (Key'V, Load)
+                , (Key'B, Play Loop)
+                ]
 
         globalTranslations = BasicPrelude.concat
             [ pitchHarmonyKeys

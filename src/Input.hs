@@ -4,6 +4,7 @@
 -- | Program-specific input types
 module Input ( Input (..)
              , TrackCommand (..)
+             , LoopBehavior (..)
              , UnifiedEvent (..)
              , PitchShift (..)
              , Harmony (..)
@@ -71,8 +72,11 @@ data Input
         | Timestep Tick
     deriving (Show, Read, Eq, Ord)
 
+data LoopBehavior = Once | Loop
+    deriving (Show, Read, Eq, Ord)
+
 data TrackCommand = Record
-                  | Play
+                  | Play LoopBehavior
                   | Save
                   | Load
     deriving (Show, Read, Eq, Ord)

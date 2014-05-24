@@ -27,7 +27,7 @@ data TrackOutput
 data TrackMemory = TrackMemory
         { _trackData :: Vector TrackOutput
         , _recording :: Bool
-        , _playState :: Maybe (Int, Tick)
+        , _playState :: Maybe (Int, Tick, LoopBehavior)
         }
   deriving (Show, Read)
 
