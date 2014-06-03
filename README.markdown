@@ -6,4 +6,4 @@ Non-hackage libraries required:
 
  * refcount (https://github.com/RobotGymnast/refcount)
  * game-wrappers (https://github.com/RobotGymnast/game-wrappers)
- * imidi (https://github.com/RobotGymnast/midi-monad)
+ * midi-effect (https://github.com/RobotGymnast/midi-effect)
