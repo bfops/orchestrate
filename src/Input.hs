@@ -10,7 +10,7 @@ module Input ( Input (..)
              , Harmony (..)
              , EventTranslator
              , EventTranslation
-             , Track
+             , TrackNumber
              , emptyHarmony
              , velocity
              , harmonize
@@ -63,12 +63,12 @@ emptyHarmony = Harmony Nothing Nothing Nothing
 type EventTranslation m = Translation m UnifiedEvent Input
 type EventTranslator m = Translator m UnifiedEvent Input
 
-type Track = Integer
+type TrackNumber = Integer
 
 data Input
         = NoteInput Note (Maybe Velocity)
         | HarmonyInput Harmony Bool
-        | Track TrackCommand Track
+        | Track TrackCommand TrackNumber
         | Timestep Tick
     deriving (Show, Read, Eq, Ord)
 

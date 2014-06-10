@@ -13,7 +13,7 @@ import BasicPrelude as Base
 import Control.Eff
 import Control.Eff.Lift as Eff
 import Control.Concurrent.STM
-import Control.Lens (view, set, over, (<&>))
+import Control.Lens
 import Control.Monad.Trans.Class as Trans
 import Data.Conduit
 import Data.Conduit.List as Conduit
@@ -32,7 +32,7 @@ import TrackMemory
 #define Typeable Typeable1
 #endif
 
-trackFile :: Track -> FilePath
+trackFile :: TrackNumber -> FilePath
 trackFile t = fromString $ unpack $ "track" <> show t
 
 -- | "Hold" inputs by counting the number of @Just@ and @Nothing@ (on and off)
@@ -76,7 +76,7 @@ initialTrackMemory
 modifyExtant ::
     MonadIO m =>
     TVar MemoryBank ->
-    Track ->
+    TrackNumber ->
     (TrackMemory -> TrackMemory) ->
     m ()
 modifyExtant tracks t f
@@ -106,20 +106,20 @@ stepLogic ::
     Input ->
     Conduit i (Eff env) (Note, Maybe Velocity)
 stepLogic tracks harmoniesVar
-      = \e -> do
-          justProcessInput e
+      = \i -> do
+          justProcessInput i
+              =$= Conduit.concat
               -- Append all the notes that are produced to all the recording tracks.
-              =$= Conduit.mapM (sideEffect $ \(note, v) -> onRecordingTracks (`snoc` NoteOutput note v))
-          onRecordingTracks (snocIfTimestep e)
+              =$= Conduit.mapM (sideEffect $ \(note, v) -> onRecordingTracks (`Vector.snoc` NoteOutput note v))
+          onRecordingTracks (snocIfTimestep i)
   where
     -- just handle the immediate "consequences" of the input,
     -- with no real attention paid to "long-term" effects.
-    justProcessInput e = case e of
+    justProcessInput = \case
         NoteInput note mv -> do
-          yield (note, mv)
+          yield [(note, mv)]
           harmonies <- liftSTMConduit $ readTVar harmoniesVar
-          Base.forM_ (keys $ unRefcount harmonies) $ \h -> do
-            yield $ harmonize h (note, mv)
+          yield $ [harmonize h (note, mv) | h <- keys $ unRefcount harmonies]
 
         HarmonyInput harmony isOn -> liftSTMConduit $ do
           modifyTVar' harmoniesVar $ \harmonies ->
@@ -138,7 +138,7 @@ stepLogic tracks harmoniesVar
           Trans.lift $ liftIO $ writeFile (trackFile t) $ show dat
 
         Track Load t -> do
-          dat <- read <$> Trans.lift (liftIO $ readFile (trackFile t))
+          dat <- read <$> Trans.lift (liftIO $ readFile $ trackFile t)
           modifyExtant tracks t $ set trackData dat
 
         Timestep dt -> do
@@ -149,7 +149,7 @@ stepLogic tracks harmoniesVar
                         $ HashMap.toList
                         $ advancePlayBy dt <$> mem
                     in (outs, HashMap.fromList mem')
-          yield (Base.concat outs) =$= Conduit.concat
+          yield (Base.concat outs)
 
     onRecordingTracks f
       = liftIO
@@ -165,7 +165,7 @@ stepLogic tracks harmoniesVar
         -- don't pad dead time before notes
         = if Vector.null v
           then v
-          else snoc v (RestOutput dt)
+          else Vector.snoc v (RestOutput dt)
     snocIfTimestep _ t = t
 
     -- TODO: When recording finishes, release all started notes.
@@ -179,16 +179,6 @@ stepLogic tracks harmoniesVar
             then togglePlaying (error "togglePlaying on") t''
             else t''
           else t'
-
-    -- this doesn't play nicely with track looping
-    stripSuffixRests v
-      = let len = Vector.length v
-        in
-          if len == 0
-          then v
-          else case Vector.last v of
-                RestOutput _ -> stripSuffixRests $ Vector.take (len - 1) v
-                _ -> v
 
     togglePlaying l t
         = let t' = over playState (maybe (Just (0, 0, l)) (\_-> Nothing)) t in

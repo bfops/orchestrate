@@ -119,13 +119,12 @@ inputTranslations = pianoMapper 0 <> globalTranslations
         pianoMapper root
             = BasicPrelude.concat [pianoMIDI, pianoKeys, violinHarmonies, remapToViolin, pitchShiftKeys]
             where
-              piano, guitar :: Pitch -> Note
+              piano :: Pitch -> Note
               piano = (, Instrument 0)
-              guitar = (, Instrument 1)
 
               pianoMIDI =
                   [0..120] <&> \n ->
-                      forever $ match (note $ piano n) $ chord [guitar $ n + root]
+                      forever $ match (note $ piano n) $ chord [piano $ n + root]
 
               pianoKeys =
                 zip "ASDFGHJK" keySteps <&> \(key, step) ->

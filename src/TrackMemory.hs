@@ -34,12 +34,12 @@ data TrackMemory = TrackMemory
 
 $(makeLenses ''TrackMemory)
 
-type MemoryBank = HashMap Track TrackMemory
+type MemoryBank = HashMap TrackNumber TrackMemory
 
 isPlaying :: IndexPreservingGetter TrackMemory Bool
 isPlaying = to $ isJust . view playState
 
-track :: Track -> Lens' MemoryBank TrackMemory
+track :: TrackNumber -> Lens' MemoryBank TrackMemory
 track t = lens (lookupDefault trackNotFoundError t) (\m v -> insert t v m)
   where
     trackNotFoundError = error $ "Could not find track " <> unpack (show t)
