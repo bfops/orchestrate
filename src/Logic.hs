@@ -33,6 +33,11 @@ import TrackMemory
 #define Typeable Typeable1
 #endif
 
+-- TODO: Can this be generalized? e.g. to `Lens s t a b`.
+-- | `overT` is to `traverse` as `over` is to `fmap`.
+overT :: Functor f => Lens' s a -> (a -> f a) -> s -> f s
+overT l f s = f (view l s) <&> \a -> set l a s
+
 trackFile :: TrackNumber -> FilePath
 trackFile t = fromString $ unpack $ "track" <> show t
 
@@ -69,8 +74,8 @@ logic = do
 sideEffect :: Functor f => (a -> f ()) -> a -> f a
 sideEffect f a = a <$ f a
 
-observeTVarIO :: MonadIO m => TVar a -> (a -> (b, a)) -> m b
-observeTVarIO t f = liftIO $ atomically $ do
+observeTVar :: TVar a -> (a -> (b, a)) -> STM b
+observeTVar t f = do
     a <- readTVar t
     let (b, a') = f a
     writeTVar t a'
@@ -79,9 +84,6 @@ observeTVarIO t f = liftIO $ atomically $ do
 toRests :: Input -> [TrackOutput]
 toRests (Timestep dt) = [RestOutput dt]
 toRests _ = []
-
-modifyTVarIO :: MonadIO m => TVar a -> (a -> a) -> m ()
-modifyTVarIO t = liftIO . atomically . modifyTVar t
 
 -- TODO: when harmonies are released, release associated notes properly.
 stepLogic ::
@@ -95,9 +97,16 @@ stepLogic tracks harmoniesVar
           justProcessInput i
               =$= Conduit.concat
               -- Append all the notes that are produced to all the recording tracks.
-              =$= Conduit.mapM (sideEffect $ \(note, v) -> modifyTVarIO tracks $ record [NoteOutput note v])
-          Trans.lift $ modifyTVarIO tracks $ record $ toRests i
+              =$= Conduit.mapM (sideEffect $ \(note, v) -> tracksIO modifyTVar $ record [NoteOutput note v])
+          Trans.lift $ tracksIO modifyTVar $ record $ toRests i
   where
+    tracksIO ::
+      MonadIO m =>
+      (TVar TrackMemory -> a -> STM b) ->
+      a ->
+      m b
+    tracksIO f = liftIO . atomically . f tracks
+
     -- just handle the immediate "consequences" of the input,
     -- with no real attention paid to "long-term" effects.
     justProcessInput = \case
@@ -113,16 +122,18 @@ stepLogic tracks harmoniesVar
             else fromMaybe harmonies $ deleteRef harmony harmonies
         
         Track Record t -> do
-          modifyTVarIO tracks $
-            over (track t)
-              $  stopRecording
+          outputs <- tracksIO observeTVar $
+            overT (track t)
+              $ ([],) . stopRecording
               @> startRecording
+          yield outputs
 
         Track (Play l) t -> do
-          modifyTVarIO tracks $
-            over (track t)
+          outputs <- tracksIO observeTVar $
+            overT (track t)
               $  stopPlaying
-              @> startPlaying l
+              @> ([],) . startPlaying l
+          yield outputs
 
         Track Save t -> do
           dat <- liftIO $ atomically $ readTVar tracks <&> view (track t) <&> view trackData
@@ -130,8 +141,8 @@ stepLogic tracks harmoniesVar
 
         Track Load t -> do
           dat <- read <$> Trans.lift (liftIO $ readFile $ trackFile t)
-          modifyTVarIO tracks $ over (track t) (set trackData dat)
+          tracksIO modifyTVar $ over (track t) (set trackData dat)
 
         Timestep dt -> do
-          outputs <- observeTVarIO tracks $ playSome dt
+          outputs <- tracksIO observeTVar $ playSome dt
           yield outputs
