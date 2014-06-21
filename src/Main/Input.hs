@@ -154,7 +154,7 @@ inputTranslations = pianoMapper 0 <> globalTranslations
               violin = (, Instrument 40)
 
               violinMIDI = 
-                  [36..59] <&> \i ->
+                  [12..59] <&> \i ->
                       forever $ match (note (i, Instrument 0)) $ chord [violin $ 2 * octave + i + root]
 
               pianoMIDI =
