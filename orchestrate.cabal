@@ -19,7 +19,7 @@ executable orchestrate
                     containers == 0.5.*,
                     extensible-effects == 1.4.*,
                     game-wrappers == 0.5.*,
-                    open-union == 0.0.*,
+                    open-union == 0.1.*,
                     midi-effect == 0.10.*,
                     lens == 4.1.*,
                     mtl == 2.1.*,
