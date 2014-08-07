@@ -33,9 +33,9 @@ keyPress _ _ _ = False
 matchKeyPress ::
     Monad m =>
     Key ->
-    (UnifiedEvent -> Translator m UnifiedEvent o Bool) ->
+    Translator m UnifiedEvent o Bool ->
     Translator m UnifiedEvent o Bool
-matchKeyPress key = matchKeyEvent key KeyState'Pressed
+matchKeyPress key t = matchKeyEvent key KeyState'Pressed $ \_-> t
 
 matchKeyPressAndRelease ::
     Monad m =>
@@ -43,7 +43,7 @@ matchKeyPressAndRelease ::
     (UnifiedEvent -> Translator m UnifiedEvent o Bool) ->
     Translator m UnifiedEvent o Bool
 matchKeyPressAndRelease key continue
-    = matchKeyPress key
+    = matchKeyEvent key KeyState'Pressed
     $ \e -> do
           yield $ AddTranslator (untilTrue $ matchKeyEvent key KeyState'Released continue)
           continue e

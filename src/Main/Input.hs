@@ -1,3 +1,4 @@
+-- | Translate system events to program inputs.
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImpredicativeTypes #-}
@@ -55,18 +56,16 @@ note :: Note -> UnifiedEvent -> Bool
 note (instr, pitch) (Midi (i, p) _) = instr == i && pitch == p
 note _ _ = False
 
-remap :: Monad m => [EventTranslator m ()] -> UnifiedEvent -> EventTranslator m Bool
-remap l e = do
-    let isOn = isJust $ view (velocity pressVelocity) e
-    if isOn
-    then do
-      yield ResetTranslators
-      traverse_ (yield . AddTranslator) l
-      return True
-    else return True
+remap :: Monad m => [EventTranslator m ()] -> EventTranslator m Bool
+remap l = do
+    yield ResetTranslators
+    traverse_ (yield . AddTranslator) l
+    return True
 
-produce :: Monad m => Input -> EventTranslator m ()
-produce = yield . Produce
+produce :: Monad m => Input -> EventTranslator m Bool
+produce i = do
+    yield $ Produce i
+    return True
 
 octave :: Pitch
 octave = 12
@@ -75,7 +74,7 @@ octave = 12
 
 -- | What controls what?
 inputTranslations :: Monad m => [EventTranslator m ()]
-inputTranslations = pianoMapper 0 <> globalTranslations
+inputTranslations = splitMapper (Instrument 0) 0 <> globalTranslations
     where
         trackCommands
             = liftA2 (,) [1..9]
@@ -92,6 +91,10 @@ inputTranslations = pianoMapper 0 <> globalTranslations
             , drumMIDI
             , trackCommands <&> \(i, (key, cmd)) ->
                 forever $ contiguously (matchKeyPress <$> [key, numKey i]) $ produce (Track cmd i)
+            , [ forever $ contiguously (matchKeyPress <$> [Key'Semicolon, Key'V]) $ remap $ splitMapper (Instrument 40) 0 <> globalTranslations ]
+            , [ forever $ contiguously (matchKeyPress <$> [Key'Semicolon, Key'B]) $ remap $ splitMapper (Instrument 34) 0 <> globalTranslations ]
+            , [ forever $ contiguously (matchKeyPress <$> [Key'Semicolon, Key'T]) $ remap $ splitMapper (Instrument 56) 0 <> globalTranslations ]
+            , [ forever $ contiguously (matchKeyPress <$> [Key'Semicolon, Key'P]) $ remap $ splitMapper Percussion 0 <> globalTranslations ]
             ]
 
         pitchHarmonyKeys =
@@ -116,67 +119,37 @@ inputTranslations = pianoMapper 0 <> globalTranslations
         -- The changes in pitch along the absolute-pitch keys.
         keySteps = [0, 2, 4, 5, 7, 9, 11, 12]
 
-        pianoMapper root
-            = BasicPrelude.concat [pianoMIDI, pianoKeys, violinHarmonies, remapToViolin, pitchShiftKeys]
+        splitMapper instr root = BasicPrelude.concat [splitMIDI, pianoMIDI, splitKeys, pianoHarmonies, pitchShiftKeys]
             where
-              piano :: Pitch -> Note
-              piano = (, Instrument 0)
+              withInstr :: Pitch -> Note
+              withInstr = (, instr)
+
+              splitMIDI =
+                  [0..71] <&> \i ->
+                      forever $ match (note (i, Instrument 0)) $ chord [withInstr $ 2 * octave + i + root]
 
               pianoMIDI =
-                  [0..120] <&> \n ->
-                      forever $ match (note $ piano n) $ chord [piano $ n + root]
-
-              pianoKeys =
-                zip "ASDFGHJK" keySteps <&> \(key, step) ->
-                  forever $ matchCharKey key $ chord [piano $ 4 * octave + root + step]
-
-              violinHarmonies =
-                  [0..9] <&> \i ->
-                    forever
-                      $ matchCharKey ("QWERTYUIOP" !! i)
-                      $ harmony
-                      $ Harmony
-                      { changeVelocity = Just (-16)
-                      , changeInstrument = Just $ Instrument 40
-                      , changePitch = Just $ DeltaPitch $ fromIntegral i
-                      }
-
-              remapToViolin = [ forever $ matchKeyPress Key'Semicolon $ remap $ violinMapper root <> globalTranslations ]
-
-              pitchShiftKeys =
-                  [ forever $ matchKeyPress Key'M $ remap $ pianoMapper (root + 1) <> globalTranslations
-                  , forever $ matchKeyPress Key'N $ remap $ pianoMapper (root - 1) <> globalTranslations
-                  ]
-
-        violinMapper root = BasicPrelude.concat [violinMIDI, pianoMIDI, violinKeys, pianoHarmonies, remapToPiano, pitchShiftKeys]
-            where
-              violin :: Pitch -> Note
-              violin = (, Instrument 40)
-
-              violinMIDI = 
-                  [12..59] <&> \i ->
-                      forever $ match (note (i, Instrument 0)) $ chord [violin $ 2 * octave + i + root]
-
-              pianoMIDI =
-                  [60..120] <&> \i ->
+                  [72..120] <&> \i ->
                       forever $ match (note (i, Instrument 0)) $ chord [(i + root, Instrument 0)]
 
-              violinKeys =
+              splitKeys =
                   zip [0..7] keySteps <&> \(i, step) ->
-                      forever $ matchCharKey ("ASDFGHJK" !! i) $ chord [violin $ 4 * octave + step + root]
+                      forever $ matchCharKey ("ASDFGHJK" !! i) $ chord [withInstr $ 4 * octave + step + root]
 
               pianoHarmonies =
                   [0..9] <&> \i ->
                       forever
                         $ matchCharKey ("QWERTYUIOP" !! i)
                         $ harmony
-                        $ Harmony { changeVelocity = Just 8, changeInstrument = Just $ Instrument 0, changePitch = Just $ DeltaPitch $ fromIntegral i }
-
-              remapToPiano = [ forever $ matchKeyPress Key'Semicolon $ remap $ pianoMapper root <> globalTranslations ]
+                        $ Harmony
+                        { changeVelocity = Just 8
+                        , changeInstrument = Just $ Instrument 0
+                        , changePitch = Just $ DeltaPitch $ fromIntegral i
+                        }
 
               pitchShiftKeys =
-                  [ forever $ matchKeyPress Key'M $ remap $ violinMapper (root + 1) <> globalTranslations
-                  , forever $ matchKeyPress Key'N $ remap $ violinMapper (root - 1) <> globalTranslations
+                  [ forever $ matchKeyPress Key'M $ remap $ splitMapper instr (root + 1) <> globalTranslations
+                  , forever $ matchKeyPress Key'N $ remap $ splitMapper instr (root - 1) <> globalTranslations
                   ]
 
 -- TODO: sleep between yields
@@ -208,6 +181,7 @@ inputs = zipSourceWith (\a b -> [a, b]) timesteps
         $= Conduit.concat
         $= Conduit.catMaybes
   where
+      -- handle events that require immediate IO.
       filterIOEvents = awaitOr () $ \e -> case e of
               Event CloseEvent -> Trans.lift $ Eff.lift $ putStrLn $ fromString "CloseEvent received"
               Event (ResizeEvent s) -> do

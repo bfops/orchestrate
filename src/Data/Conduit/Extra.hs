@@ -55,8 +55,8 @@ match p f = awaitOr False $ \i -> if p i
                                   then True <$ f i
                                   else return False
 
-contiguously :: (Functor m, Monad m) => [((x -> m Bool) -> m Bool)] -> m () -> m Bool
-contiguously l c = foldr (\f p -> f $ \_-> p) (True <$ c) l
+contiguously :: (Functor m, Monad m) => [(m Bool -> m Bool)] -> m Bool -> m Bool
+contiguously l c = foldr ($) c l
 
 yieldM :: Show a => Monad m => m a -> Conduit i m a
 yieldM m = lift m >>= yield
