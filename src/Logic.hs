@@ -19,6 +19,7 @@ import Control.Monad.Trans.Class as Trans
 import Data.Conduit
 import Data.Conduit.List as Conduit
 import Data.HashMap.Strict as HashMap
+import Data.HashSet as HashSet
 import Data.OpenUnion
 import Data.Refcount
 import Data.Text (unpack)
@@ -68,8 +69,9 @@ liftSTMConduit = Trans.lift . liftIO . atomically
 logic :: SetMember Lift (Lift IO) env => Conduit Input (Eff env) (Note, Maybe Velocity)
 logic = do
     tracks <- liftSTMConduit $ newTVar mempty
-    harmonies <- liftSTMConduit $ newTVar mempty
-    awaitForever (stepLogic tracks harmonies) =$= hold
+    harmoniesCounts <- liftSTMConduit $ newTVar mempty
+    harmoniesReleases <- liftSTMConduit $ newTVar mempty
+    awaitForever (stepLogic tracks harmoniesCounts harmoniesReleases) =$= hold
 
 sideEffect :: Functor f => (a -> f ()) -> a -> f a
 sideEffect f a = a <$ f a
@@ -85,14 +87,14 @@ toRests :: Input -> [TrackOutput]
 toRests (Timestep dt) = [RestOutput dt]
 toRests _ = []
 
--- TODO: when harmonies are released, release associated notes properly.
 stepLogic ::
     SetMember Lift (Lift IO) env =>
     TVar TrackMemory ->
     TVar (Refcount Harmony) ->
+    TVar (HashMap Harmony (HashSet Note)) ->
     Input ->
     Conduit i (Eff env) (Note, Maybe Velocity)
-stepLogic tracks harmoniesVar
+stepLogic tracks harmoniesCountVar harmoniesReleaseVar
       = \i -> do
           justProcessInput i
               =$= Conduit.concat
@@ -112,15 +114,34 @@ stepLogic tracks harmoniesVar
     justProcessInput = \case
         NoteInput note mv -> do
           yield [(note, mv)]
-          harmonies <- liftSTMConduit $ readTVar harmoniesVar
-          yield $ [harmonize h (note, mv) | h <- keys $ unRefcount harmonies]
+          harmonies <- keys . unRefcount <$> liftSTMConduit (readTVar harmoniesCountVar)
+          liftSTMConduit $ case mv of
+            Nothing ->
+              modifyTVar' harmoniesReleaseVar $ \m ->
+                Base.foldl' (\m' h -> HashMap.adjust (HashSet.delete note) h m') m harmonies
+            Just _ ->
+              modifyTVar' harmoniesReleaseVar $
+                HashMap.unionWith (<>) $
+                  HashMap.fromList (harmonies <&> (, HashSet.fromList [note]))
+          let notes = [harmonize h (note, mv) | h <- harmonies]
+          yield notes
 
-        HarmonyInput harmony isOn -> liftSTMConduit $ do
-          modifyTVar' harmoniesVar $ \harmonies ->
-            if isOn
-            then insertRef harmony harmonies
-            else fromMaybe harmonies $ deleteRef harmony harmonies
-        
+        HarmonyInput harmony isOn -> do
+          if isOn
+          then do
+            liftSTMConduit $
+              modifyTVar' harmoniesCountVar $ \harmonies ->
+                insertRef harmony harmonies
+          else do
+            liftSTMConduit $
+              modifyTVar' harmoniesCountVar $ \harmonies ->
+                fromMaybe harmonies $ deleteRef harmony harmonies
+            releases <- liftSTMConduit $
+              observeTVar harmoniesReleaseVar $ \harmonies ->
+                let releases = maybe [] HashSet.toList $ HashMap.lookup harmony harmonies
+                in ([harmonize harmony (n, Nothing) | n <- releases], HashMap.delete harmony harmonies)
+            yield releases
+
         Track Record t -> do
           outputs <- tracksIO observeTVar $
             overT (track t)
